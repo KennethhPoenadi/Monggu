@@ -239,7 +239,7 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-120px)] overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
+    <div className="relative min-h-[calc(100vh-120px)] overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100 overflow-hidden">
       {/* dekorasi blob */}
       <svg
         className="pointer-events-none absolute -right-20 -top-20 w-[36rem] h-[36rem] opacity-20 blur-3xl"

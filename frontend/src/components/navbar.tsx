@@ -54,6 +54,10 @@ export default function Navbar({
   const HEADER_SOLID = "bg-slate-900 h-[90px]";
   const HEADER_GLASS = "bg-slate-900 h-[90px]";
 
+  if (!userInfo) {
+    return null;
+  }
+
   return (
     <>
       <div
