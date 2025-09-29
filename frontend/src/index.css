@@ -1,1 +1,98 @@
-@import "tailwindcss";
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  background: #242424;
+  color: rgba(255,255,255,.92);
+}
+
+#root { display: flex; flex-direction: column; min-height: 100vh; }
+
+main.container {
+  flex: 1;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 20px;
+}
+
+a { color: #8ea2ff; text-decoration: none; }
+a:hover { color: #b7c3ff; }
+
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(18,18,18,0.9);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.nav__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.brand {
+  color: #fff; font-weight: 800; letter-spacing: .2px; font-size: 18px;
+}
+
+.hamburger {
+  display: none;
+  background: transparent;
+  color: #fff;
+  font-size: 20px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+}
+
+.nav__links ul {
+  display: flex; align-items: center; gap: 22px;
+  list-style: none; margin: 0; padding: 0;
+}
+.nav__links a { color: #e6e6e6; }
+.nav__links a:hover { color: #fff; }
+
+@media (max-width: 720px) {
+  .hamburger { display: inline-flex; }
+  .nav__links {
+    position: absolute; left: 0; right: 0; top: 56px;
+    display: none;
+    background: rgba(18,18,18,0.98);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .nav__links.is-open { display: block; }
+  .nav__links ul { flex-direction: column; align-items: flex-start; gap: 12px; padding: 12px 20px; }
+}
+
+.footer {
+  background: #111;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.footer__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 18px 20px;
+  display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: space-between;
+  gap: 10px;
+  color: #bdbdbd; font-size: 14px;
+}
+.footer__links { display: flex; gap: 10px; }
+.footer__links a { color: #bdbdbd; }
+.footer__links a:hover { color: #fff; }
+
+@media (prefers-color-scheme: light) {
+  body { background: #ffffff; color: #213547; }
+  .nav { background: rgba(255,255,255,0.85); border-bottom-color: rgba(0,0,0,0.06); }
+  .brand, .nav__links a { color: #213547; }
+  .hamburger { color: #213547; border-color: rgba(0,0,0,0.12); }
+  .footer { background: #fafafa; border-top-color: rgba(0,0,0,0.06); }
+  .footer__inner, .footer__links a { color: #475569; }
+}
+
+h1 { font-size: 48px; margin: 0 0 8px; }
+p { margin: 0 0 12px; }
