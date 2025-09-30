@@ -1,8 +1,12 @@
 import Navbar from "./components/navbar";
 import Footer from "./components/footer";
+import MainNavigation from "./components/MainNavigation";
+import DonationPage from "./components/donation/DonationPage";
+import NotificationPage from "./components/notification/NotificationPage";
+import RewardPage from "./components/reward/RewardPage";
 import "./index.css";
 import LoginGoogle from "../src/components/login/LoginGoogle";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { User } from "./types/user";
 
 type UserInfo = User & { name?: string };
@@ -14,38 +18,119 @@ function Dashboard({
   userInfo: UserInfo;
   onLogout: () => void;
 }) {
+  const [currentPage, setCurrentPage] = useState<
+    "donation" | "notification" | "reward" | "product"
+  >("donation");
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  // Load unread notification count
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/notifications/user/${userInfo.user_id}`
+      );
+      const data = await response.json();
+      if (data.status === "success") {
+        const unread = data.notifications.filter(
+          (notif: { is_read: boolean }) => !notif.is_read
+        ).length;
+        setUnreadNotifications(unread);
+      }
+    } catch (error) {
+      console.error("Error loading unread notifications:", error);
+    }
+  }, [userInfo.user_id]);
+
+  useEffect(() => {
+    loadUnreadCount();
+    // Refresh unread count every 30 seconds
+    const interval = setInterval(loadUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [loadUnreadCount]);
+
+  const renderCurrentPage = () => {
+    switch (currentPage) {
+      case "donation":
+        return <DonationPage user_id={userInfo.user_id} />;
+      case "notification":
+        return <NotificationPage user_id={userInfo.user_id} />;
+      case "reward":
+        return <RewardPage user_id={userInfo.user_id} />;
+      case "product":
+        return (
+          <div className="min-h-screen bg-gray-50 p-6">
+            <div className="max-w-4xl mx-auto">
+              <h1 className="text-3xl font-bold text-gray-800 mb-4">
+                Product Management
+              </h1>
+              <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+                <div className="text-6xl mb-4">🚧</div>
+                <h3 className="text-xl font-semibold text-gray-600 mb-2">
+                  Coming Soon
+                </h3>
+                <p className="text-gray-500">
+                  Product management features will be available soon!
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return <DonationPage user_id={userInfo.user_id} />;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-gray-800">
-              Selamat datang, {userInfo.name || userInfo.email}!
-            </h1>
+
+      {/* User Info Header */}
+      <div className="bg-white border-b">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">
+                Welcome, {userInfo.name || userInfo.email}!
+              </h1>
+              <div className="flex items-center gap-6 mt-2 text-sm text-gray-600">
+                <span>
+                  Points:{" "}
+                  <strong className="text-green-600">
+                    {userInfo.poin || 0}
+                  </strong>
+                </span>
+                <span>
+                  Rank:{" "}
+                  <strong className="text-purple-600">
+                    {userInfo.rank || "Beginner"}
+                  </strong>
+                </span>
+                <span>
+                  ID:{" "}
+                  <strong className="text-blue-600">{userInfo.user_id}</strong>
+                </span>
+              </div>
+            </div>
             <button
               onClick={onLogout}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded transition duration-200"
+              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition duration-200"
             >
               Logout
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-blue-100 p-4 rounded">
-              <h3 className="font-semibold text-blue-800">User ID</h3>
-              <p className="text-blue-600">{userInfo.user_id}</p>
-            </div>
-            <div className="bg-green-100 p-4 rounded">
-              <h3 className="font-semibold text-green-800">Poin</h3>
-              <p className="text-green-600">{userInfo.poin || 0}</p>
-            </div>
-            <div className="bg-purple-100 p-4 rounded">
-              <h3 className="font-semibold text-purple-800">Rank</h3>
-              <p className="text-purple-600">{userInfo.rank || "beginner"}</p>
-            </div>
-          </div>
         </div>
       </div>
+
+      {/* Navigation */}
+      <MainNavigation
+        currentPage={currentPage}
+        onPageChange={setCurrentPage}
+        unreadNotifications={unreadNotifications}
+      />
+
+      {/* Main Content */}
+      <div className="pb-8">{renderCurrentPage()}</div>
+
       <Footer />
     </div>
   );
