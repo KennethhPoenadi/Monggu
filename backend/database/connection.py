@@ -63,26 +63,28 @@ class DatabaseManager:
             return
         try:
             async with self.pool.acquire() as connection:
+                # Create accounts table first (main table with user_id)
                 await connection.execute('''
-                    CREATE TABLE IF NOT EXISTS users (
+                    CREATE TABLE IF NOT EXISTS accounts (
                         user_id SERIAL PRIMARY KEY,
-                        name VARCHAR(100) NOT NULL,
                         email VARCHAR(100) UNIQUE NOT NULL,
-                        poin INTEGER DEFAULT 0,
-                        rank VARCHAR(100) DEFAULT '',
+                        name VARCHAR(100) NOT NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
+                
+                # Create users table (game data extension)
                 await connection.execute('''
-                    CREATE TABLE IF NOT EXISTS accounts (
-                        account_id SERIAL PRIMARY KEY,
-                        user_id INTEGER NOT NULL,
-                        email VARCHAR(100) NOT NULL,
-                        name VARCHAR(100) NOT NULL,
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL UNIQUE,
+                        poin INTEGER DEFAULT 0,
+                        rank VARCHAR(100) DEFAULT 'beginner',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                        CONSTRAINT fk_account FOREIGN KEY(user_id) REFERENCES accounts(user_id) ON DELETE CASCADE
                     )
                 ''')
+                
                 await connection.execute('''
                     CREATE TABLE IF NOT EXISTS products (
                         product_id SERIAL PRIMARY KEY,
@@ -101,8 +103,8 @@ class DatabaseManager:
                         product_id INTEGER NOT NULL,
                         status VARCHAR(100) NOT NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        CONSTRAINT fk_sender FOREIGN KEY(user_id1) REFERENCES users(user_id) ON DELETE CASCADE,
-                        CONSTRAINT fk_receiver FOREIGN KEY(user_id2) REFERENCES users(user_id) ON DELETE CASCADE,
+                        CONSTRAINT fk_sender FOREIGN KEY(user_id1) REFERENCES accounts(user_id) ON DELETE CASCADE,
+                        CONSTRAINT fk_receiver FOREIGN KEY(user_id2) REFERENCES accounts(user_id) ON DELETE CASCADE,
                         CONSTRAINT fk_product FOREIGN KEY(product_id) REFERENCES products(product_id) ON DELETE CASCADE
                     )
                 ''')
