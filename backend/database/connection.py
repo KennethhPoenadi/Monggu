@@ -88,13 +88,77 @@ class DatabaseManager:
                 await connection.execute('''
                     CREATE TABLE IF NOT EXISTS products (
                         product_id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
                         product_name VARCHAR(100) NOT NULL,
                         expiry_date DATE NOT NULL,
                         count INTEGER NOT NULL,
                         type_product VARCHAR(100) NOT NULL,
+                        image_url VARCHAR(255),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        CONSTRAINT fk_product_owner FOREIGN KEY(user_id) REFERENCES accounts(user_id) ON DELETE CASCADE
+                    )
+                ''')
+                
+                # Create donations table
+                await connection.execute('''
+                    CREATE TABLE IF NOT EXISTS donations (
+                        donation_id SERIAL PRIMARY KEY,
+                        donor_user_id INTEGER NOT NULL,
+                        receiver_user_id INTEGER,
+                        type_of_food TEXT[] NOT NULL,
+                        latitude DECIMAL(10, 8) NOT NULL,
+                        longitude DECIMAL(11, 8) NOT NULL,
+                        status VARCHAR(20) DEFAULT 'Diajukan' CHECK (status IN ('Diajukan', 'Siap Dijemput', 'Diterima')),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '1 hour'),
+                        CONSTRAINT fk_donor FOREIGN KEY(donor_user_id) REFERENCES accounts(user_id) ON DELETE CASCADE,
+                        CONSTRAINT fk_receiver FOREIGN KEY(receiver_user_id) REFERENCES accounts(user_id) ON DELETE SET NULL
+                    )
+                ''')
+                
+                # Create notifications table
+                await connection.execute('''
+                    CREATE TABLE IF NOT EXISTS notifications (
+                        notification_id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        title VARCHAR(200) NOT NULL,
+                        message TEXT NOT NULL,
+                        notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN ('Product Expiry', 'Donation Received', 'Donation Expired', 'Reward Earned')),
+                        is_read BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        CONSTRAINT fk_notification_user FOREIGN KEY(user_id) REFERENCES accounts(user_id) ON DELETE CASCADE
+                    )
+                ''')
+                
+                # Create rewards table
+                await connection.execute('''
+                    CREATE TABLE IF NOT EXISTS rewards (
+                        reward_id SERIAL PRIMARY KEY,
+                        name VARCHAR(100) NOT NULL,
+                        description TEXT NOT NULL,
+                        points_required INTEGER NOT NULL,
+                        reward_type VARCHAR(20) NOT NULL CHECK (reward_type IN ('Voucher', 'Discount', 'Free Item', 'Badge')),
+                        value VARCHAR(100) NOT NULL,
+                        is_active BOOLEAN DEFAULT TRUE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
+                
+                # Create user_rewards table (junction table for claimed rewards)
+                await connection.execute('''
+                    CREATE TABLE IF NOT EXISTS user_rewards (
+                        user_reward_id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        reward_id INTEGER NOT NULL,
+                        claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        is_used BOOLEAN DEFAULT FALSE,
+                        used_at TIMESTAMP,
+                        CONSTRAINT fk_user_reward_user FOREIGN KEY(user_id) REFERENCES accounts(user_id) ON DELETE CASCADE,
+                        CONSTRAINT fk_user_reward_reward FOREIGN KEY(reward_id) REFERENCES rewards(reward_id) ON DELETE CASCADE,
+                        UNIQUE(user_id, reward_id)
+                    )
+                ''')
+                
                 await connection.execute('''
                     CREATE TABLE IF NOT EXISTS delivery (
                         delivery_id SERIAL PRIMARY KEY,
