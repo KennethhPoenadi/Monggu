@@ -159,6 +159,7 @@ class DatabaseManager:
                     )
                 ''')
                 
+                # Create delivery table
                 await connection.execute('''
                     CREATE TABLE IF NOT EXISTS delivery (
                         delivery_id SERIAL PRIMARY KEY,
@@ -172,6 +173,27 @@ class DatabaseManager:
                         CONSTRAINT fk_product FOREIGN KEY(product_id) REFERENCES products(product_id) ON DELETE CASCADE
                     )
                 ''')
+                
+                # Create recipes table
+                await connection.execute('''
+                    CREATE TABLE IF NOT EXISTS recipes (
+                        recipe_id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        title VARCHAR(200) NOT NULL,
+                        description TEXT,
+                        ingredients TEXT[] NOT NULL,
+                        instructions TEXT[] NOT NULL,
+                        category VARCHAR(50) NOT NULL,
+                        prep_time INTEGER NOT NULL,
+                        servings INTEGER NOT NULL,
+                        difficulty VARCHAR(10) NOT NULL CHECK (difficulty IN ('Easy', 'Medium', 'Hard')),
+                        image_url TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP,
+                        CONSTRAINT fk_recipe_user FOREIGN KEY(user_id) REFERENCES accounts(user_id) ON DELETE CASCADE
+                    )
+                ''')
+                
                 print("✅ Initial tables created successfully!")
         except Exception as e:
             print(f"❌ Failed to create initial tables: {e}")
