@@ -5,28 +5,32 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
 
+
 class UserBase(BaseModel):
-    """Base user schema"""
     name: str
     email: EmailStr
+    poin: int = 0
+    rank: str = ""
+
 
 class UserCreate(UserBase):
-    """Schema for creating a new user"""
     pass
 
+
 class UserUpdate(BaseModel):
-    """Schema for updating user"""
     name: Optional[str] = None
     email: Optional[EmailStr] = None
+    poin: Optional[int] = None
+    rank: Optional[str] = None
+
 
 class UserResponse(UserBase):
-    """Schema for user response"""
-    id: int
+    user_id: int
     created_at: datetime
     
     class Config:
         from_attributes = True
 
+
 class UserInDB(UserResponse):
-    """User model as stored in database"""
     pass

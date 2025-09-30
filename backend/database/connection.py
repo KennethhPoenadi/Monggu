@@ -1,20 +1,14 @@
-"""
-Database connection management
-"""
 import asyncpg
 from typing import Optional
 from config.database import DATABASE_CONFIG, POOL_CONFIG
 
 class DatabaseManager:
-    """Database connection manager"""
     
     def __init__(self):
         self.pool: Optional[asyncpg.Pool] = None
     
     async def create_database_if_not_exists(self) -> bool:
-        """Create database if it doesn't exist"""
         try:
-            # Connect to default 'postgres' database
             conn = await asyncpg.connect(
                 host=DATABASE_CONFIG["host"],
                 port=DATABASE_CONFIG["port"],
@@ -23,7 +17,6 @@ class DatabaseManager:
                 password=DATABASE_CONFIG["password"]
             )
             
-            # Check if target database exists
             db_exists = await conn.fetchval(
                 "SELECT 1 FROM pg_database WHERE datname = $1", 
                 DATABASE_CONFIG["database"]
@@ -31,19 +24,18 @@ class DatabaseManager:
             
             if not db_exists:
                 await conn.execute(f'CREATE DATABASE "{DATABASE_CONFIG["database"]}"')
-                print(f"✅ Database '{DATABASE_CONFIG['database']}' created successfully!")
+                print(f"Database '{DATABASE_CONFIG['database']}' created successfully!")
             else:
-                print(f"ℹ️ Database '{DATABASE_CONFIG['database']}' already exists.")
+                print(f"ℹDatabase '{DATABASE_CONFIG['database']}' already exists.")
                 
             await conn.close()
             return True
             
         except Exception as e:
-            print(f"❌ Failed to create database: {e}")
+            print(f"Failed to create database: {e}")
             return False
     
     async def create_connection_pool(self) -> bool:
-        """Create database connection pool"""
         try:
             self.pool = await asyncpg.create_pool(
                 host=DATABASE_CONFIG["host"],
@@ -54,33 +46,64 @@ class DatabaseManager:
                 min_size=POOL_CONFIG["min_size"],
                 max_size=POOL_CONFIG["max_size"]
             )
-            print("✅ Database connection pool created successfully!")
+            print("Database connection pool created successfully!")
             return True
         except Exception as e:
-            print(f"❌ Failed to create connection pool: {e}")
+            print(f"Failed to create connection pool: {e}")
             return False
     
     async def close_connection_pool(self):
-        """Close database connection pool"""
         if self.pool:
             await self.pool.close()
-            print("🔌 Database connection pool closed")
+            print("Database connection pool closed")
     
     async def create_initial_tables(self):
-        """Create initial database tables"""
         if not self.pool:
-            print("❌ No database connection available")
+            print("No database connection available")
             return
-        
         try:
             async with self.pool.acquire() as connection:
-                # Create users table
                 await connection.execute('''
                     CREATE TABLE IF NOT EXISTS users (
-                        id SERIAL PRIMARY KEY,
+                        user_id SERIAL PRIMARY KEY,
                         name VARCHAR(100) NOT NULL,
                         email VARCHAR(100) UNIQUE NOT NULL,
+                        poin INTEGER DEFAULT 0,
+                        rank VARCHAR(100) DEFAULT '',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                await connection.execute('''
+                    CREATE TABLE IF NOT EXISTS accounts (
+                        account_id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        email VARCHAR(100) NOT NULL,
+                        name VARCHAR(100) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    )
+                ''')
+                await connection.execute('''
+                    CREATE TABLE IF NOT EXISTS products (
+                        product_id SERIAL PRIMARY KEY,
+                        product_name VARCHAR(100) NOT NULL,
+                        expiry_date DATE NOT NULL,
+                        count INTEGER NOT NULL,
+                        type_product VARCHAR(100) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                await connection.execute('''
+                    CREATE TABLE IF NOT EXISTS delivery (
+                        delivery_id SERIAL PRIMARY KEY,
+                        user_id1 INTEGER NOT NULL,
+                        user_id2 INTEGER NOT NULL,
+                        product_id INTEGER NOT NULL,
+                        status VARCHAR(100) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        CONSTRAINT fk_sender FOREIGN KEY(user_id1) REFERENCES users(user_id) ON DELETE CASCADE,
+                        CONSTRAINT fk_receiver FOREIGN KEY(user_id2) REFERENCES users(user_id) ON DELETE CASCADE,
+                        CONSTRAINT fk_product FOREIGN KEY(product_id) REFERENCES products(product_id) ON DELETE CASCADE
                     )
                 ''')
                 print("✅ Initial tables created successfully!")
@@ -88,7 +111,6 @@ class DatabaseManager:
             print(f"❌ Failed to create initial tables: {e}")
     
     def get_pool(self) -> Optional[asyncpg.Pool]:
-        """Get the database connection pool"""
         return self.pool
 
 # Global database manager instance
