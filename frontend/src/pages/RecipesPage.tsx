@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 
 interface Recipe {
   recipe_id: number;
+  user_id: number;
   title: string;
   description: string;
   ingredients: string[];
