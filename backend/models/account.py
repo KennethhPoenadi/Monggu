@@ -6,20 +6,19 @@ from typing import Optional
 from datetime import datetime
 
 class AccountBase(BaseModel):
-    user_id: int  # Foreign key to user.user_id
     email: EmailStr
     name: str
 
 class AccountCreate(BaseModel):
-    user_id: int
     email: EmailStr
+    name: str
 
 class AccountUpdate(BaseModel):
     email: Optional[EmailStr] = None
     name: Optional[str] = None
 
 class AccountResponse(AccountBase):
-    account_id: int
+    user_id: int  # Auto-increment primary key
     created_at: datetime
     
     class Config:

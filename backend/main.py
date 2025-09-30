@@ -1,52 +1,59 @@
-"""
-Monggu API - Main application entry point
-"""
+from dotenv import load_dotenv
+load_dotenv() 
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from database.connection import db_manager
-from routers import user
+from routers import user, account, product, delivery, google_oauth
 from config.database import DATABASE_CONFIG
 
-# Initialize FastAPI app
 app = FastAPI(
     title="Monggu API", 
     description="A clean and organized API with PostgreSQL connection",
     version="1.0.0"
 )
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Include routers
 app.include_router(user.router)
+app.include_router(account.router)
+app.include_router(product.router)
+app.include_router(delivery.router)
+app.include_router(google_oauth.router)
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database connection on startup"""
     print("🚀 Starting Monggu API...")
     
-    # Create database if it doesn't exist
     db_created = await db_manager.create_database_if_not_exists()
     if not db_created:
         print("❌ Could not ensure database exists, continuing anyway...")
     
-    # Create connection pool
     pool_created = await db_manager.create_connection_pool()
     if not pool_created:
         print("❌ Failed to create connection pool!")
         return
     
-    # Create initial tables
     await db_manager.create_initial_tables()
     
     print("✅ Monggu API started successfully!")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Close database connection on shutdown"""
     print("🛑 Shutting down Monggu API...")
     await db_manager.close_connection_pool()
     print("✅ Monggu API shutdown complete!")
 
 @app.get("/")
 async def read_root():
-    """Root endpoint"""
     return {
         "message": "Welcome to Monggu API!", 
         "database": DATABASE_CONFIG["database"],
@@ -56,7 +63,6 @@ async def read_root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     pool = db_manager.get_pool()
     if not pool:
         raise HTTPException(status_code=500, detail="Database connection not available")

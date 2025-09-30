@@ -10,7 +10,7 @@ DATABASE_CONFIG: Dict[str, Any] = {
     "port": int(os.getenv("DB_PORT", "5432")),
     "database": os.getenv("DB_NAME", "Monggu"),
     "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD", "belmiroganteng")
+    "password": os.getenv("DB_PASSWORD", "root")
 }
 
 # Connection pool settings

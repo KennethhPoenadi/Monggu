@@ -26,8 +26,8 @@ async def create_user(user_data: UserCreate, pool=Depends(get_db_pool)):
     try:
         async with pool.acquire() as connection:
             user_id = await connection.fetchval(
-                "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id",
-                user_data.name, user_data.email
+                "INSERT INTO users (email, poin, rank) VALUES ($1, $2, $3) RETURNING user_id",
+                user_data.email, user_data.poin, user_data.rank
             )
             return {
                 "status": "success", 
@@ -55,7 +55,7 @@ async def get_user(user_id: int, pool=Depends(get_db_pool)):
     """Get user by ID"""
     try:
         async with pool.acquire() as connection:
-            user = await connection.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+            user = await connection.fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             return {"status": "success", "user": dict(user)}
@@ -70,7 +70,7 @@ async def update_user(user_id: int, user_data: UserUpdate, pool=Depends(get_db_p
     try:
         async with pool.acquire() as connection:
             # Check if user exists
-            existing_user = await connection.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+            existing_user = await connection.fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
             if not existing_user:
                 raise HTTPException(status_code=404, detail="User not found")
             
@@ -79,21 +79,26 @@ async def update_user(user_id: int, user_data: UserUpdate, pool=Depends(get_db_p
             update_values = []
             param_count = 1
             
-            if user_data.name is not None:
-                update_fields.append(f"name = ${param_count}")
-                update_values.append(user_data.name)
-                param_count += 1
-            
             if user_data.email is not None:
                 update_fields.append(f"email = ${param_count}")
                 update_values.append(user_data.email)
+                param_count += 1
+            
+            if user_data.poin is not None:
+                update_fields.append(f"poin = ${param_count}")
+                update_values.append(user_data.poin)
+                param_count += 1
+            
+            if user_data.rank is not None:
+                update_fields.append(f"rank = ${param_count}")
+                update_values.append(user_data.rank)
                 param_count += 1
             
             if not update_fields:
                 raise HTTPException(status_code=400, detail="No fields to update")
             
             update_values.append(user_id)  # Add user_id for WHERE clause
-            query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ${param_count} RETURNING *"
+            query = f"UPDATE users SET {', '.join(update_fields)} WHERE user_id = ${param_count} RETURNING *"
             
             updated_user = await connection.fetchrow(query, *update_values)
             return {"status": "success", "message": "User updated successfully!", "user": dict(updated_user)}
@@ -111,12 +116,12 @@ async def delete_user(user_id: int, pool=Depends(get_db_pool)):
     try:
         async with pool.acquire() as connection:
             # Check if user exists
-            existing_user = await connection.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+            existing_user = await connection.fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
             if not existing_user:
                 raise HTTPException(status_code=404, detail="User not found")
             
             # Delete user
-            await connection.execute("DELETE FROM users WHERE id = $1", user_id)
+            await connection.execute("DELETE FROM users WHERE user_id = $1", user_id)
             return {"status": "success", "message": "User deleted successfully!"}
             
     except HTTPException:
