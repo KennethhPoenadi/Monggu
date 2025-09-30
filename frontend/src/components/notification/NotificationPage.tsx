@@ -129,38 +129,49 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
   const unreadCount = notifications.filter((notif) => !notif.is_read).length;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-green-50 p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-4">
-            Notifications
+        <div className="bg-white rounded-3xl shadow-lg p-8 mb-8">
+          <div className="text-center mb-6">
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent mb-4">
+              📱 Notifications
+            </h1>
+            <p className="text-gray-600 text-lg">
+              Stay updated with your donation activities
+            </p>
+          </div>
+
+          <div className="flex items-center justify-center mb-6">
             {unreadCount > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-sm px-2 py-1 rounded-full">
-                {unreadCount}
-              </span>
+              <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-2xl shadow-lg">
+                <span className="flex items-center gap-2 font-semibold">
+                  <span className="animate-pulse">🔔</span>
+                  {unreadCount} unread notification{unreadCount > 1 ? "s" : ""}
+                </span>
+              </div>
             )}
-          </h1>
+          </div>
 
           {/* Filters and Actions */}
-          <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex flex-wrap gap-4 items-center justify-center">
             <div className="flex gap-2">
               <button
                 onClick={() => setFilter("all")}
-                className={`px-4 py-2 rounded-lg transition-colors ${
+                className={`px-6 py-3 rounded-2xl transition-all duration-300 font-semibold ${
                   filter === "all"
-                    ? "bg-blue-600 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-100"
+                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
+                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
                 }`}
               >
                 All ({notifications.length})
               </button>
               <button
                 onClick={() => setFilter("unread")}
-                className={`px-4 py-2 rounded-lg transition-colors ${
+                className={`px-6 py-3 rounded-2xl transition-all duration-300 font-semibold ${
                   filter === "unread"
-                    ? "bg-blue-600 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-100"
+                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
+                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
                 }`}
               >
                 Unread ({unreadCount})
@@ -170,9 +181,12 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold px-6 py-3 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
               >
-                Mark All as Read
+                <span className="flex items-center gap-2">
+                  <span>✅</span>
+                  Mark All as Read
+                </span>
               </button>
             )}
           </div>
@@ -180,9 +194,11 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
 
         {/* Loading State */}
         {loading && (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-gray-600">Loading notifications...</p>
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"></div>
+            <p className="mt-4 text-gray-600 text-lg font-medium">
+              Loading notifications...
+            </p>
           </div>
         )}
 
@@ -192,23 +208,27 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
             {filteredNotifications.map((notification) => (
               <div
                 key={notification.notification_id}
-                className={`bg-white rounded-lg shadow-sm border-l-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors ${getNotificationColor(
+                className={`bg-white rounded-2xl shadow-lg hover:shadow-xl border-l-4 p-6 cursor-pointer transition-all duration-300 transform hover:scale-105 ${getNotificationColor(
                   notification.notification_type
-                )} ${!notification.is_read ? "bg-blue-50" : ""}`}
+                )} ${
+                  !notification.is_read
+                    ? "bg-gradient-to-r from-blue-50 to-white"
+                    : ""
+                }`}
                 onClick={() =>
                   !notification.is_read &&
                   markAsRead(notification.notification_id)
                 }
               >
-                <div className="flex items-start gap-3">
-                  <div className="text-2xl">
+                <div className="flex items-start gap-4">
+                  <div className="text-3xl bg-gray-100 p-3 rounded-2xl">
                     {getNotificationIcon(notification.notification_type)}
                   </div>
 
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-3 mb-2">
                       <h3
-                        className={`font-semibold ${
+                        className={`font-bold text-lg ${
                           !notification.is_read
                             ? "text-blue-800"
                             : "text-gray-800"
@@ -217,14 +237,18 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
                         {notification.title}
                       </h3>
                       {!notification.is_read && (
-                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        <span className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></span>
                       )}
                     </div>
 
-                    <p className="text-gray-600 mb-2">{notification.message}</p>
+                    <p className="text-gray-600 mb-3 leading-relaxed">
+                      {notification.message}
+                    </p>
 
                     <div className="flex items-center gap-4 text-sm text-gray-400">
-                      <span>{notification.notification_type}</span>
+                      <span className="bg-gray-100 px-2 py-1 rounded-lg font-medium">
+                        {notification.notification_type}
+                      </span>
                       <span>•</span>
                       <span>
                         {new Date(notification.created_at).toLocaleString()}
@@ -236,14 +260,14 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
             ))}
 
             {filteredNotifications.length === 0 && !loading && (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">📭</div>
-                <h3 className="text-xl font-semibold text-gray-600 mb-2">
+              <div className="text-center py-16 bg-white rounded-3xl shadow-lg">
+                <div className="text-8xl mb-6">📭</div>
+                <h3 className="text-2xl font-bold text-gray-600 mb-3">
                   {filter === "unread"
                     ? "No unread notifications"
                     : "No notifications yet"}
                 </h3>
-                <p className="text-gray-500">
+                <p className="text-gray-500 text-lg">
                   {filter === "unread"
                     ? "All caught up! You have no unread notifications."
                     : "Notifications about your donations and rewards will appear here."}

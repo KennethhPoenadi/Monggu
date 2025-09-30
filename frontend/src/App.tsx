@@ -1,9 +1,12 @@
 import Navbar from "./components/navbar";
 import Footer from "./components/footer";
-import MainNavigation from "./components/MainNavigation";
 import DonationPage from "./components/donation/DonationPage";
 import NotificationPage from "./components/notification/NotificationPage";
 import RewardPage from "./components/reward/RewardPage";
+import HomePage from "./pages/HomePage";
+import ProductPage from "./pages/ProductPage";
+import MapPage from "./pages/MapPage";
+import RecipesPage from "./pages/RecipesPage";
 import "./index.css";
 import LoginGoogle from "../src/components/login/LoginGoogle";
 import { useEffect, useState, useCallback } from "react";
@@ -19,8 +22,14 @@ function Dashboard({
   onLogout: () => void;
 }) {
   const [currentPage, setCurrentPage] = useState<
-    "donation" | "notification" | "reward" | "product"
-  >("donation");
+    | "home"
+    | "donation"
+    | "notification"
+    | "reward"
+    | "product"
+    | "map"
+    | "recipes"
+  >("home");
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   // Load unread notification count
@@ -50,6 +59,8 @@ function Dashboard({
 
   const renderCurrentPage = () => {
     switch (currentPage) {
+      case "home":
+        return <HomePage userInfo={userInfo} />;
       case "donation":
         return <DonationPage user_id={userInfo.user_id} />;
       case "notification":
@@ -57,79 +68,43 @@ function Dashboard({
       case "reward":
         return <RewardPage user_id={userInfo.user_id} />;
       case "product":
+        return <ProductPage user_id={userInfo.user_id} />;
+      case "map":
+        return <MapPage user_id={userInfo.user_id} />;
+      case "recipes":
+        return <RecipesPage user_id={userInfo.user_id} />;
+      default:
         return (
           <div className="min-h-screen bg-gray-50 p-6">
             <div className="max-w-4xl mx-auto">
-              <h1 className="text-3xl font-bold text-gray-800 mb-4">
-                Product Management
-              </h1>
               <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
-                <div className="text-6xl mb-4">🚧</div>
-                <h3 className="text-xl font-semibold text-gray-600 mb-2">
-                  Coming Soon
-                </h3>
-                <p className="text-gray-500">
-                  Product management features will be available soon!
+                <div className="text-6xl mb-4">🏠</div>
+                <h1 className="text-3xl font-bold text-gray-800 mb-4">
+                  Welcome to Monggu
+                </h1>
+                <p className="text-gray-600">
+                  Your food donation platform. Share food, earn points, and make
+                  a difference!
                 </p>
               </div>
             </div>
           </div>
         );
-      default:
-        return <DonationPage user_id={userInfo.user_id} />;
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
-
-      {/* User Info Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">
-                Welcome, {userInfo.name || userInfo.email}!
-              </h1>
-              <div className="flex items-center gap-6 mt-2 text-sm text-gray-600">
-                <span>
-                  Points:{" "}
-                  <strong className="text-green-600">
-                    {userInfo.poin || 0}
-                  </strong>
-                </span>
-                <span>
-                  Rank:{" "}
-                  <strong className="text-purple-600">
-                    {userInfo.rank || "Beginner"}
-                  </strong>
-                </span>
-                <span>
-                  ID:{" "}
-                  <strong className="text-blue-600">{userInfo.user_id}</strong>
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={onLogout}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition duration-200"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <MainNavigation
+      <Navbar
         currentPage={currentPage}
         onPageChange={setCurrentPage}
         unreadNotifications={unreadNotifications}
+        userInfo={userInfo}
+        onLogout={onLogout}
       />
 
       {/* Main Content */}
-      <div className="pb-8">{renderCurrentPage()}</div>
+      <div className="">{renderCurrentPage()}</div>
 
       <Footer />
     </div>
