@@ -8,8 +8,8 @@ import HomePage from "./pages/HomePage";
 import ProductPage from "./pages/ProductPage";
 import MapPage from "./pages/MapPage";
 import RecipesPage from "./pages/RecipesPage";
+import ProtectedRoute from "./components/ProtectedRoute";
 import "./index.css";
-import LoginGoogle from "../src/components/login/LoginGoogle";
 import { useEffect, useState, useCallback } from "react";
 import type { User } from "./types/user";
 
@@ -103,25 +103,6 @@ function Dashboard({
   );
 }
 
-function LoginPage({ error }: { error?: string }) {
-  return (
-    <>
-      <Navbar />
-      <main className="container">
-        <h1>Selamat datang di FoodLoop!</h1>
-        <p>belmiro dan kenneth ganteng</p>
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            Login gagal: {error}
-          </div>
-        )}
-        <LoginGoogle />
-      </main>
-      <Footer />
-    </>
-  );
-}
-
 export default function App() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -192,13 +173,11 @@ export default function App() {
     );
   }
 
-  if (userInfo) {
-    return (
-      <BrowserRouter>
-        <Dashboard userInfo={userInfo} onLogout={handleLogout} />
-      </BrowserRouter>
-    );
-  }
-
-  return <LoginPage error={error || undefined} />;
+  return (
+    <BrowserRouter>
+      <ProtectedRoute userInfo={userInfo} error={error || undefined}>
+        <Dashboard userInfo={userInfo!} onLogout={handleLogout} />
+      </ProtectedRoute>
+    </BrowserRouter>
+  );
 }
