@@ -1,3 +1,4 @@
+import { Routes, Route, useLocation, Navigate, BrowserRouter } from "react-router-dom";
 import Navbar from "./components/navbar";
 import Footer from "./components/footer";
 import DonationPage from "./components/donation/DonationPage";
@@ -21,16 +22,32 @@ function Dashboard({
   userInfo: UserInfo;
   onLogout: () => void;
 }) {
-  const [currentPage, setCurrentPage] = useState<
-    | "home"
-    | "donation"
-    | "notification"
-    | "reward"
-    | "product"
-    | "map"
-    | "recipes"
-  >("home");
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const location = useLocation();
+
+  // Get current page from URL path
+  const getCurrentPageFromPath = (pathname: string) => {
+    switch (pathname) {
+      case "/":
+        return "home";
+      case "/donation":
+        return "donation";
+      case "/notification":
+        return "notification";
+      case "/reward":
+        return "reward";
+      case "/product":
+        return "product";
+      case "/map":
+        return "map";
+      case "/recipes":
+        return "recipes";
+      default:
+        return "home";
+    }
+  };
+
+  const currentPage = getCurrentPageFromPath(location.pathname);
 
   // Load unread notification count
   const loadUnreadCount = useCallback(async () => {
@@ -57,54 +74,29 @@ function Dashboard({
     return () => clearInterval(interval);
   }, [loadUnreadCount]);
 
-  const renderCurrentPage = () => {
-    switch (currentPage) {
-      case "home":
-        return <HomePage userInfo={userInfo} />;
-      case "donation":
-        return <DonationPage user_id={userInfo.user_id} />;
-      case "notification":
-        return <NotificationPage user_id={userInfo.user_id} />;
-      case "reward":
-        return <RewardPage user_id={userInfo.user_id} />;
-      case "product":
-        return <ProductPage user_id={userInfo.user_id} />;
-      case "map":
-        return <MapPage user_id={userInfo.user_id} />;
-      case "recipes":
-        return <RecipesPage user_id={userInfo.user_id} />;
-      default:
-        return (
-          <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
-                <div className="text-6xl mb-4">🏠</div>
-                <h1 className="text-3xl font-bold text-gray-800 mb-4">
-                  Welcome to Monggu
-                </h1>
-                <p className="text-gray-600">
-                  Your food donation platform. Share food, earn points, and make
-                  a difference!
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar
         currentPage={currentPage}
-        onPageChange={setCurrentPage}
         unreadNotifications={unreadNotifications}
         userInfo={userInfo}
         onLogout={onLogout}
       />
 
-      {/* Main Content */}
-      <div className="">{renderCurrentPage()}</div>
+      {/* Main Content with Routes */}
+      <div className="">
+        <Routes>
+          <Route path="/" element={<HomePage userInfo={userInfo} />} />
+          <Route path="/donation" element={<DonationPage user_id={userInfo.user_id} />} />
+          <Route path="/notification" element={<NotificationPage user_id={userInfo.user_id} />} />
+          <Route path="/reward" element={<RewardPage user_id={userInfo.user_id} />} />
+          <Route path="/product" element={<ProductPage user_id={userInfo.user_id} />} />
+          <Route path="/map" element={<MapPage user_id={userInfo.user_id} />} />
+          <Route path="/recipes" element={<RecipesPage user_id={userInfo.user_id} />} />
+          {/* Default fallback to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
 
       <Footer />
     </div>
@@ -201,7 +193,11 @@ export default function App() {
   }
 
   if (userInfo) {
-    return <Dashboard userInfo={userInfo} onLogout={handleLogout} />;
+    return (
+      <BrowserRouter>
+        <Dashboard userInfo={userInfo} onLogout={handleLogout} />
+      </BrowserRouter>
+    );
   }
 
   return <LoginPage error={error || undefined} />;
