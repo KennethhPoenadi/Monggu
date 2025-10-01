@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 interface NavbarProps {
   currentPage?:
@@ -9,16 +10,6 @@ interface NavbarProps {
     | "product"
     | "map"
     | "recipes";
-  onPageChange?: (
-    page:
-      | "home"
-      | "donation"
-      | "notification"
-      | "reward"
-      | "product"
-      | "map"
-      | "recipes"
-  ) => void;
   unreadNotifications?: number;
   userInfo?: {
     name?: string;
@@ -32,7 +23,6 @@ interface NavbarProps {
 
 export default function Navbar({
   currentPage = "home",
-  onPageChange,
   unreadNotifications = 0,
   userInfo,
   onLogout,
@@ -54,11 +44,8 @@ export default function Navbar({
     { id: "reward" as const, label: "Rewards", icon: "🏆" },
   ];
 
-  const handleNavClick = (pageId: typeof currentPage) => {
-    if (onPageChange) {
-      onPageChange(pageId);
-    }
-    setOpen(false);
+  const getRoutePath = (id: string) => {
+    return id === "home" ? "/" : `/${id}`;
   };
 
   return (
@@ -81,9 +68,10 @@ export default function Navbar({
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-1">
             {navItems.map((item) => (
-              <button
+              <Link
                 key={item.id}
-                onClick={() => handleNavClick(item.id)}
+                to={getRoutePath(item.id)}
+                onClick={() => setOpen(false)}
                 className={`relative flex flex-col items-center gap-1 px-4 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${
                   currentPage === item.id
                     ? "bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-200"
@@ -99,7 +87,7 @@ export default function Navbar({
                     {item.badge > 9 ? "9+" : item.badge}
                   </span>
                 )}
-              </button>
+              </Link>
             ))}
           </div>
 
@@ -149,9 +137,10 @@ export default function Navbar({
         <div className="md:hidden bg-white border-t border-green-100 shadow-lg">
           <div className="px-6 py-4 space-y-2">
             {navItems.map((item) => (
-              <button
+              <Link
                 key={item.id}
-                onClick={() => handleNavClick(item.id)}
+                to={getRoutePath(item.id)}
+                onClick={() => setOpen(false)}
                 className={`relative w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                   currentPage === item.id
                     ? "bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg"
@@ -167,7 +156,7 @@ export default function Navbar({
                     {item.badge > 9 ? "9+" : item.badge}
                   </span>
                 )}
-              </button>
+              </Link>
             ))}
 
             {/* Mobile User Info */}
