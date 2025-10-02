@@ -8,6 +8,7 @@ function Home() {
   return (
     <main className="container">
       <h1>Selamat datang di FoodLoop!</h1>
+      <div className="h-10 w-10 bg-emerald-500 rounded"></div>
       <p>belmiro dan kenneth ganteng</p>
     </main>
   );
@@ -23,7 +24,7 @@ export default function App() {
         {/* <Route path="/dashboard" element={<Dashboard />} /> */}
         {/* <Route path="/donation-map" element={<DonationMap />} /> */}
         {/* <Route path="/recipe-suggestions" element={<Recipes />} /> */}
-        
+
         {/* Halaman 404 eksplisit */}
         <Route path="/notfound" element={<NotFoundPage />} />
 
