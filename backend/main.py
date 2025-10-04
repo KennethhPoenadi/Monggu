@@ -4,7 +4,7 @@ load_dotenv()
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from database.connection import db_manager
-from routers import user, account, product, delivery, google_oauth, donation, notification, reward, recipe
+from routers import user, account, product, delivery, google_oauth, donation, notification, reward, recipe, food_ai
 from config.database import DATABASE_CONFIG
 
 app = FastAPI(
@@ -32,6 +32,7 @@ app.include_router(donation.router)
 app.include_router(notification.router)
 app.include_router(reward.router)
 app.include_router(recipe.router, prefix="/recipes", tags=["recipes"])
+app.include_router(food_ai.router, prefix="/ai", tags=["food-ai"])
 
 @app.on_event("startup")
 async def startup_event():

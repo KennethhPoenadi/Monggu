@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { type NearbyDonation, DonationStatus } from "../types/donation";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 interface MapPageProps {
   user_id: number;
@@ -33,7 +35,6 @@ const MapPage: React.FC<MapPageProps> = () => {
     }
   }, []);
 
-  // Load nearby donations
   const loadNearbyDonations = useCallback(async () => {
     if (!userLocation) return;
 
@@ -92,6 +93,30 @@ const MapPage: React.FC<MapPageProps> = () => {
     if (distance <= 10) return "text-orange-600 bg-orange-100";
     return "text-red-600 bg-red-100";
   };
+
+  // Initialize map
+  useEffect(() => {
+    if (!userLocation) return;
+
+    const map = L.map("map").setView([userLocation.lat, userLocation.lng], 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    donations.forEach((donation) => {
+      L.marker([donation.lat, donation.lng])
+        .addTo(map)
+        .bindPopup(
+          `<strong>${donation.type_of_food.join(", ")}</strong><br>${donation.address}`
+        );
+    });
+
+    return () => {
+      map.remove();
+    };
+  }, [userLocation, donations]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-green-50 to-blue-50 p-6">
@@ -163,7 +188,11 @@ const MapPage: React.FC<MapPageProps> = () => {
               Interactive Map
             </h2>
             <div className="bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl p-16 border-2 border-dashed border-gray-300">
-              <div className="text-6xl mb-4">🗺️</div>
+              <div
+                id="map"
+                className="h-96 rounded-3xl shadow-lg"
+                style={{ height: "400px", zIndex: 0 }}
+              ></div>
               <p className="text-gray-600 text-lg">
                 Interactive map will be displayed here
               </p>

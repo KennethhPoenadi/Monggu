@@ -9,7 +9,8 @@ interface NavbarProps {
     | "reward"
     | "product"
     | "map"
-    | "recipes";
+    | "recipes"
+    | "ai-food";
   unreadNotifications?: number;
   userInfo?: {
     name?: string;
@@ -35,6 +36,7 @@ export default function Navbar({
     { id: "product" as const, label: "Products", icon: "📦" },
     { id: "map" as const, label: "Donation Map", icon: "🗺️" },
     { id: "recipes" as const, label: "Recipes", icon: "📝" },
+    { id: "ai-food" as const, label: "AI Food", icon: "🤖" },
     {
       id: "notification" as const,
       label: "Notifications",
