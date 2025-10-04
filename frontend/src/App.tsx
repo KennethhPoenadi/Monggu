@@ -8,6 +8,7 @@ import HomePage from "./pages/HomePage";
 import ProductPage from "./pages/ProductPage";
 import MapPage from "./pages/MapPage";
 import RecipesPage from "./pages/RecipesPage";
+import AIFoodPage from "./pages/AIFoodPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./index.css";
 import { useEffect, useState, useCallback } from "react";
@@ -44,6 +45,8 @@ function Dashboard({
         return "map";
       case "/recipes":
         return "recipes";
+      case "/ai-food":
+        return "ai-food";
       default:
         return "home";
     }
@@ -93,6 +96,7 @@ function Dashboard({
           <Route path="/product" element={<ProductPage user_id={userInfo.user_id} />} />
           <Route path="/map" element={<MapPage user_id={userInfo.user_id} />} />
           <Route path="/recipes" element={<RecipesPage user_id={userInfo.user_id} />} />
+          <Route path="/ai-food" element={<AIFoodPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </div>

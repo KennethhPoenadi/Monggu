@@ -24,8 +24,8 @@ async def create_product(product: ProductCreate, pool=Depends(get_db_pool)):
     try:
         async with pool.acquire() as connection:
             product_id = await connection.fetchval(
-                "INSERT INTO products (product_name, expiry_date, count, type_product) VALUES ($1, $2, $3, $4) RETURNING product_id",
-                product.product_name, product.expiry_date, product.count, product.type_product
+                "INSERT INTO products (user_id, product_name, expiry_date, count, type_product) VALUES ($1, $2, $3, $4, $5) RETURNING product_id",
+                product.user_id, product.product_name, product.expiry_date, product.count, product.type_product
             )
             return {"status": "success", "product_id": product_id}
     except Exception as e:
@@ -49,6 +49,19 @@ async def get_product(product_id: int, pool=Depends(get_db_pool)):
             if not product:
                 raise HTTPException(status_code=404, detail="Product not found")
             return {"status": "success", "product": dict(product)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.get("/user/{user_id}", response_model=dict)
+async def get_user_products(user_id: int, pool=Depends(get_db_pool)):
+    try:
+        async with pool.acquire() as connection:
+            rows = await connection.fetch(
+                "SELECT * FROM products WHERE user_id = $1 ORDER BY created_at DESC", 
+                user_id
+            )
+            products = [dict(row) for row in rows]
+            return {"status": "success", "products": products}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 

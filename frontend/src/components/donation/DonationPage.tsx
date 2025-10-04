@@ -5,6 +5,7 @@ import {
   type DonationCreate,
   type NearbyDonation,
 } from "../../types/donation";
+import FoodClassifier from "../FoodClassifier";
 
 interface DonationPageProps {
   user_id: number;
@@ -19,6 +20,7 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
     lng: number;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showAIClassifier, setShowAIClassifier] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<DonationCreate>({
@@ -130,6 +132,21 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
     }
   };
 
+  // Handle AI food detection
+  const handleFoodDetected = (foodType: string, analysis: {
+    primary_food_type: string;
+    confidence: number;
+    alternative_types: string[];
+    is_food: boolean;
+  }) => {
+    setFormData(prev => ({
+      ...prev,
+      type_of_food: [foodType, ...analysis.alternative_types.slice(0, 2)].filter(Boolean),
+      description: prev.description || `AI detected: ${foodType} with ${(analysis.confidence * 100).toFixed(1)}% confidence`
+    }));
+    setShowAIClassifier(false);
+  };
+
   // Update donation status
   const updateDonationStatus = async (
     donationId: number,
@@ -217,19 +234,38 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                   <label className="block text-sm font-semibold text-gray-700">
                     Food Types <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Rice, Vegetables, Bread (comma separated)"
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        type_of_food: e.target.value
-                          .split(",")
-                          .map((item) => item.trim()),
-                      })
-                    }
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g., Rice, Vegetables, Bread (comma separated)"
+                      className="flex-1 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
+                      value={formData.type_of_food.join(", ")}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          type_of_food: e.target.value
+                            .split(",")
+                            .map((item) => item.trim()),
+                        })
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAIClassifier(!showAIClassifier)}
+                      className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-2 rounded-2xl transition-all duration-300 flex items-center gap-2"
+                    >
+                      🤖 AI
+                    </button>
+                  </div>
+                  
+                  {showAIClassifier && (
+                    <div className="mt-4">
+                      <FoodClassifier 
+                        onFoodDetected={handleFoodDetected}
+                        className="border border-gray-200 rounded-2xl"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">

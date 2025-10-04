@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { type Product } from "../types/product";
+import FoodClassifier from "../components/FoodClassifier";
 
 interface ProductPageProps {
   user_id: number;
@@ -10,6 +11,7 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [filter, setFilter] = useState<"all" | "expiring" | "fresh">("all");
+  const [showAIClassifier, setShowAIClassifier] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -161,6 +163,66 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
     "Other",
   ];
 
+  // Dynamic mapping AI food types to product categories
+  const mapFoodTypeToCategory = (foodType: string): string => {
+    const foodLower = foodType.toLowerCase();
+    
+    // Dynamic categorization based on keywords
+    if (foodLower.includes("pisang") || foodLower.includes("apel") || foodLower.includes("jeruk") || 
+        foodLower.includes("buah") || foodLower.includes("fruit") || foodLower.includes("banana") ||
+        foodLower.includes("apple") || foodLower.includes("orange")) {
+      return "Fruits";
+    }
+    
+    if (foodLower.includes("sayur") || foodLower.includes("brokoli") || foodLower.includes("wortel") ||
+        foodLower.includes("tomat") || foodLower.includes("vegetable") || foodLower.includes("broccoli") ||
+        foodLower.includes("carrot") || foodLower.includes("tomato")) {
+      return "Vegetables";
+    }
+    
+    if (foodLower.includes("nasi") || foodLower.includes("mie") || foodLower.includes("roti") ||
+        foodLower.includes("pasta") || foodLower.includes("rice") || foodLower.includes("bread") ||
+        foodLower.includes("noodle") || foodLower.includes("grain")) {
+      return "Grains";
+    }
+    
+    if (foodLower.includes("ayam") || foodLower.includes("ikan") || foodLower.includes("daging") ||
+        foodLower.includes("meat") || foodLower.includes("chicken") || foodLower.includes("fish") ||
+        foodLower.includes("beef") || foodLower.includes("seafood")) {
+      return "Meat";
+    }
+    
+    if (foodLower.includes("telur") || foodLower.includes("keju") || foodLower.includes("susu") ||
+        foodLower.includes("dairy") || foodLower.includes("cheese") || foodLower.includes("milk") ||
+        foodLower.includes("yogurt")) {
+      return "Dairy";
+    }
+    
+    if (foodLower.includes("snack") || foodLower.includes("kue") || foodLower.includes("biskuit") ||
+        foodLower.includes("cake") || foodLower.includes("cookie") || foodLower.includes("dessert")) {
+      return "Snacks";
+    }
+    
+    if (foodLower.includes("minuman") || foodLower.includes("kopi") || foodLower.includes("teh") ||
+        foodLower.includes("drink") || foodLower.includes("coffee") || foodLower.includes("tea") ||
+        foodLower.includes("juice")) {
+      return "Beverages";
+    }
+    
+    // Default category for anything else
+    return "Other";
+  };
+
+  const handleFoodDetected = (foodType: string) => {
+    const category = mapFoodTypeToCategory(foodType);
+    setFormData(prev => ({
+      ...prev,
+      product_name: foodType,
+      type_product: category,
+    }));
+    setShowAIClassifier(false);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -244,16 +306,38 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
                   <label className="block text-sm font-semibold text-gray-700">
                     Product Name <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Fresh Tomatoes"
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
-                    value={formData.product_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, product_name: e.target.value })
-                    }
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g., Fresh Tomatoes"
+                      className="flex-1 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
+                      value={formData.product_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, product_name: e.target.value })
+                      }
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAIClassifier(!showAIClassifier)}
+                      className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-2 rounded-2xl transition-all duration-300 flex items-center gap-2 whitespace-nowrap"
+                    >
+                      🤖 AI Detect
+                    </button>
+                  </div>
+                  
+                  {showAIClassifier && (
+                    <div className="mt-4 p-4 border border-purple-200 rounded-2xl bg-gradient-to-br from-purple-50 to-blue-50">
+                      <div className="mb-3">
+                        <h4 className="text-sm font-semibold text-purple-700 mb-1">📸 AI Food Detection</h4>
+                        <p className="text-xs text-gray-600">Upload a photo to automatically detect product name and category</p>
+                      </div>
+                      <FoodClassifier 
+                        onFoodDetected={handleFoodDetected}
+                        className="border border-purple-200 rounded-xl"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
