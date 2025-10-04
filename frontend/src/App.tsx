@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation, Navigate, BrowserRouter } from "react-router-dom";
+import { Routes, Route, useLocation, BrowserRouter } from "react-router-dom";
 import Navbar from "./components/navbar";
 import Footer from "./components/footer";
 import DonationPage from "./components/donation/DonationPage";
@@ -12,6 +12,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import "./index.css";
 import { useEffect, useState, useCallback } from "react";
 import type { User } from "./types/user";
+import LoadingScreen from "./loading";
+import NotFoundPage from "./notfound";
 
 type UserInfo = User & { name?: string };
 
@@ -49,7 +51,6 @@ function Dashboard({
 
   const currentPage = getCurrentPageFromPath(location.pathname);
 
-  // Load unread notification count
   const loadUnreadCount = useCallback(async () => {
     try {
       const response = await fetch(
@@ -83,7 +84,6 @@ function Dashboard({
         onLogout={onLogout}
       />
 
-      {/* Main Content with Routes */}
       <div className="">
         <Routes>
           <Route path="/" element={<HomePage userInfo={userInfo} />} />
@@ -93,8 +93,7 @@ function Dashboard({
           <Route path="/product" element={<ProductPage user_id={userInfo.user_id} />} />
           <Route path="/map" element={<MapPage user_id={userInfo.user_id} />} />
           <Route path="/recipes" element={<RecipesPage user_id={userInfo.user_id} />} />
-          {/* Default fallback to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </div>
 
@@ -113,16 +112,13 @@ export default function App() {
     const errorParam = urlParams.get("error");
     const loginSuccessUserId = urlParams.get("login_success");
 
-    // Handle successful login
     if (loginSuccessUserId) {
-      // Fetch user info and store in localStorage
       fetch(`http://localhost:8000/auth/user/${loginSuccessUserId}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.status === "success") {
             localStorage.setItem("userInfo", JSON.stringify(data.user));
             setUserInfo(data.user);
-            // Clean URL
             window.history.replaceState({}, "", "/");
           } else {
             setError("Failed to load user info");
@@ -137,14 +133,12 @@ export default function App() {
       return;
     }
 
-    // Handle error parameters
     if (errorParam) {
       setError(errorParam);
       setLoading(false);
       return;
     }
 
-    // Check localStorage for existing user info
     const storedUserInfo = localStorage.getItem("userInfo");
     if (storedUserInfo) {
       try {
@@ -166,11 +160,7 @@ export default function App() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
