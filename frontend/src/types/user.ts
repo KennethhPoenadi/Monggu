@@ -3,6 +3,7 @@ export interface User {
   email: string;
   poin: number;
   rank: string;
+  isadmin: boolean;
   created_at: string;
 }
 
@@ -10,10 +11,12 @@ export interface UserCreate {
   email: string;
   poin?: number;
   rank?: string;
+  isadmin?: boolean;
 }
 
 export interface UserUpdate {
   email?: string;
   poin?: number;
   rank?: string;
+  isadmin?: boolean;
 }
