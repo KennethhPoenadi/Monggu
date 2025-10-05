@@ -26,8 +26,8 @@ async def create_user(user_data: UserCreate, pool=Depends(get_db_pool)):
     try:
         async with pool.acquire() as connection:
             user_id = await connection.fetchval(
-                "INSERT INTO users (email, poin, rank) VALUES ($1, $2, $3) RETURNING user_id",
-                user_data.email, user_data.poin, user_data.rank
+                "INSERT INTO users (user_id, poin, rank, isadmin) VALUES ($1, $2, $3, $4) RETURNING user_id",
+                user_data.user_id, user_data.poin, user_data.rank, user_data.isadmin
             )
             return {
                 "status": "success", 
@@ -94,6 +94,11 @@ async def update_user(user_id: int, user_data: UserUpdate, pool=Depends(get_db_p
                 update_values.append(user_data.rank)
                 param_count += 1
             
+            if user_data.isadmin is not None:
+                update_fields.append(f"isadmin = ${param_count}")
+                update_values.append(user_data.isadmin)
+                param_count += 1
+            
             if not update_fields:
                 raise HTTPException(status_code=400, detail="No fields to update")
             
@@ -105,6 +110,20 @@ async def update_user(user_id: int, user_data: UserUpdate, pool=Depends(get_db_p
             
     except asyncpg.UniqueViolationError:
         raise HTTPException(status_code=400, detail="Email already exists")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.get("/{user_id}/admin-status", response_model=dict)
+async def check_admin_status(user_id: int, pool=Depends(get_db_pool)):
+    """Check if user is admin"""
+    try:
+        async with pool.acquire() as connection:
+            user = await connection.fetchrow("SELECT isadmin FROM users WHERE user_id = $1", user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            return {"status": "success", "isadmin": user['isadmin']}
     except HTTPException:
         raise
     except Exception as e:

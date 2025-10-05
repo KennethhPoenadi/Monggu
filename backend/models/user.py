@@ -10,17 +10,20 @@ class UserBase(BaseModel):
     user_id: int  # Foreign key to accounts.user_id
     poin: int = 0
     rank: str = "beginner"
+    isadmin: bool = False
 
 
 class UserCreate(BaseModel):
     user_id: int
     poin: int = 0
     rank: str = "beginner"
+    isadmin: bool = False
 
 
 class UserUpdate(BaseModel):
     poin: Optional[int] = None
     rank: Optional[str] = None
+    isadmin: Optional[bool] = None
 
 
 class UserResponse(UserBase):
