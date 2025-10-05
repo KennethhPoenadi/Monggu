@@ -7,7 +7,7 @@ interface MapPageProps {
   user_id: number;
 }
 
-const MapPage: React.FC<MapPageProps> = () => {
+const MapPage: React.FC<MapPageProps> = ({ user_id }) => {
   const [donations, setDonations] = useState<NearbyDonation[]>([]);
   const [userLocation, setUserLocation] = useState<{
     lat: number;
@@ -41,7 +41,7 @@ const MapPage: React.FC<MapPageProps> = () => {
     setLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/donations/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radius_km=${searchRadius}`
+        `http://localhost:8000/donations/nearby/?latitude=${userLocation.lat}&longitude=${userLocation.lng}&radius_km=${searchRadius}&user_id=${user_id}`
       );
       const data = await response.json();
       if (data.status === "success") {
@@ -52,7 +52,7 @@ const MapPage: React.FC<MapPageProps> = () => {
     } finally {
       setLoading(false);
     }
-  }, [userLocation, searchRadius]);
+  }, [userLocation, searchRadius, user_id]);
 
   useEffect(() => {
     if (userLocation) {
@@ -61,7 +61,7 @@ const MapPage: React.FC<MapPageProps> = () => {
   }, [userLocation, loadNearbyDonations]);
 
   // Claim donation
-  const claimDonation = async (donationId: number) => {
+  const claimDonation = async (donationId: number, userId: number) => {
     try {
       const response = await fetch(
         `http://localhost:8000/donations/${donationId}`,
@@ -70,7 +70,10 @@ const MapPage: React.FC<MapPageProps> = () => {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ status: DonationStatus.Diterima }),
+          body: JSON.stringify({ 
+            status: DonationStatus.SiapDijemput,
+            receiver_user_id: userId 
+          }),
         }
       );
 
@@ -106,10 +109,10 @@ const MapPage: React.FC<MapPageProps> = () => {
     }).addTo(map);
 
     donations.forEach((donation) => {
-      L.marker([donation.lat, donation.lng])
+      L.marker([donation.latitude, donation.longitude])
         .addTo(map)
         .bindPopup(
-          `<strong>${donation.type_of_food.join(", ")}</strong><br>${donation.address}`
+          `<strong>${donation.type_of_food.join(", ")}</strong><br>Location: ${donation.latitude.toFixed(4)}, ${donation.longitude.toFixed(4)}`
         );
     });
 
@@ -244,18 +247,20 @@ const MapPage: React.FC<MapPageProps> = () => {
                 </div>
 
                 <p className="text-gray-600 mb-3 line-clamp-2">
-                  {donation.description}
+                  Donor: {donation.donor_name || "Anonymous"}
                 </p>
 
                 <div className="flex items-center text-sm text-gray-500 mb-3">
                   <span className="mr-2">📍</span>
-                  <span className="truncate">{donation.address}</span>
+                  <span className="truncate">
+                    {donation.latitude.toFixed(4)}, {donation.longitude.toFixed(4)}
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-gray-400">
                   <span>
                     Expires:{" "}
-                    {new Date(donation.expiry_time).toLocaleDateString()}
+                    {new Date(donation.expires_at).toLocaleDateString()}
                   </span>
                   <span>{donation.status}</span>
                 </div>
@@ -300,7 +305,7 @@ const MapPage: React.FC<MapPageProps> = () => {
                     {selectedDonation.type_of_food.join(", ")}
                   </h3>
                   <p className="text-gray-600 leading-relaxed">
-                    {selectedDonation.description}
+                    Donor: {selectedDonation.donor_name || "Anonymous"}
                   </p>
                 </div>
 
@@ -316,7 +321,7 @@ const MapPage: React.FC<MapPageProps> = () => {
                     <div className="text-2xl mb-2">⏰</div>
                     <div className="font-semibold text-gray-800">
                       {Math.ceil(
-                        (new Date(selectedDonation.expiry_time).getTime() -
+                        (new Date(selectedDonation.expires_at).getTime() -
                           new Date().getTime()) /
                           (1000 * 60 * 60 * 24)
                       )}{" "}
@@ -333,7 +338,9 @@ const MapPage: React.FC<MapPageProps> = () => {
                       Pickup Location
                     </span>
                   </div>
-                  <p className="text-gray-600">{selectedDonation.address}</p>
+                  <p className="text-gray-600">
+                    {selectedDonation.latitude.toFixed(4)}, {selectedDonation.longitude.toFixed(4)}
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
@@ -346,15 +353,15 @@ const MapPage: React.FC<MapPageProps> = () => {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">Expires:</span>
                   <span className="font-medium">
-                    {new Date(selectedDonation.expiry_time).toLocaleString()}
+                    {new Date(selectedDonation.expires_at).toLocaleString()}
                   </span>
                 </div>
               </div>
 
-              {selectedDonation.status === DonationStatus.SiapDijemput && (
+              {selectedDonation.status === DonationStatus.Diajukan && (
                 <div className="flex gap-3 pt-6">
                   <button
-                    onClick={() => claimDonation(selectedDonation.donation_id)}
+                    onClick={() => claimDonation(selectedDonation.donation_id, user_id)}
                     className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
                   >
                     <span className="flex items-center justify-center gap-2">

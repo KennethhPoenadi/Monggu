@@ -10,41 +10,38 @@ export type DonationStatus =
 
 export interface Donation {
   donation_id: number;
-  user_id: number;
+  donor_user_id: number;
+  receiver_user_id?: number;
   type_of_food: string[];
-  description?: string;
-  lat: number;
-  lng: number;
-  address: string;
-  expiry_time: Date;
+  latitude: number;
+  longitude: number;
   status: DonationStatus;
   created_at: Date;
-  updated_at: Date;
+  expires_at: Date;
   // Relations
-  user_name?: string;
-  user_email?: string;
+  donor_name?: string;
+  receiver_name?: string;
 }
 
 export interface DonationCreate {
+  donor_user_id: number;
   type_of_food: string[];
-  description?: string;
-  lat: number;
-  lng: number;
-  address: string;
+  latitude: number;
+  longitude: number;
+  status: DonationStatus;
 }
 
 export interface DonationUpdate {
   type_of_food?: string[];
-  description?: string;
-  lat?: number;
-  lng?: number;
-  address?: string;
+  latitude?: number;
+  longitude?: number;
   status?: DonationStatus;
+  receiver_user_id?: number;
 }
 
 export interface DonationSearch {
-  lat: number;
-  lng: number;
+  latitude: number;
+  longitude: number;
   radius_km?: number;
   status?: DonationStatus;
 }
