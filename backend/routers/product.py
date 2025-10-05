@@ -65,6 +65,24 @@ async def get_user_products(user_id: int, pool=Depends(get_db_pool)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+@router.get("/user/{user_id}/expiring", response_model=dict)
+async def get_user_expiring_products(user_id: int, days: int = 3, pool=Depends(get_db_pool)):
+    """Get products that are expiring within specified days"""
+    try:
+        async with pool.acquire() as connection:
+            rows = await connection.fetch(
+                """SELECT * FROM products 
+                   WHERE user_id = $1 
+                   AND expiry_date <= CURRENT_DATE + $2 * INTERVAL '1 day'
+                   AND expiry_date >= CURRENT_DATE
+                   ORDER BY expiry_date ASC""", 
+                user_id, days
+            )
+            products = [dict(row) for row in rows]
+            return {"status": "success", "products": products}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 @router.put("/{product_id}", response_model=dict)
 async def update_product(product_id: int, product: ProductUpdate, pool=Depends(get_db_pool)):
     try:

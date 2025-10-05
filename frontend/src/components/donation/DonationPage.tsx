@@ -5,7 +5,7 @@ import {
   type DonationCreate,
   type NearbyDonation,
 } from "../../types/donation";
-import FoodClassifier from "../FoodClassifier";
+import { type Product } from "../../types/product";
 
 interface DonationPageProps {
   user_id: number;
@@ -14,29 +14,17 @@ interface DonationPageProps {
 const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
   const [donations, setDonations] = useState<Donation[]>([]);
   const [nearbyDonations, setNearbyDonations] = useState<NearbyDonation[]>([]);
+  const [userProducts, setUserProducts] = useState<Product[]>([]);
+  const [expiringProducts, setExpiringProducts] = useState<Product[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [userLocation, setUserLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showAIClassifier, setShowAIClassifier] = useState(false);
-
-  // Form state
-  const [formData, setFormData] = useState<DonationCreate>({
-    type_of_food: [],
-    description: "",
-    lat: 0,
-    lng: 0,
-    address: "",
-  });
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   // Load user's donations
   const loadMyDonations = useCallback(async () => {
     try {
-      const response = await fetch(
-        `http://localhost:8000/donations/user/${user_id}`
-      );
+      const response = await fetch(`http://localhost:8000/donations/user/${user_id}`);
       const data = await response.json();
       if (data.status === "success") {
         setDonations(data.donations);
@@ -46,13 +34,39 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
     }
   }, [user_id]);
 
+  // Load user products
+  const loadUserProducts = useCallback(async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/products/user/${user_id}`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setUserProducts(data.products);
+      }
+    } catch (error) {
+      console.error("Error loading user products:", error);
+    }
+  }, [user_id]);
+
+  // Load expiring products
+  const loadExpiringProducts = useCallback(async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/products/user/${user_id}/expiring?days=3`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setExpiringProducts(data.products);
+      }
+    } catch (error) {
+      console.error("Error loading expiring products:", error);
+    }
+  }, [user_id]);
+
   // Load nearby donations
   const loadNearbyDonations = useCallback(async () => {
     if (!userLocation) return;
 
     try {
       const response = await fetch(
-        `http://localhost:8000/donations/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radius_km=10`
+        `http://localhost:8000/donations/nearby/?latitude=${userLocation.lat}&longitude=${userLocation.lng}&radius_km=10&user_id=${user_id}`
       );
       const data = await response.json();
       if (data.status === "success") {
@@ -61,7 +75,7 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
     } catch (error) {
       console.error("Error loading nearby donations:", error);
     }
-  }, [userLocation]);
+  }, [userLocation, user_id]);
 
   // Get user location
   useEffect(() => {
@@ -82,7 +96,9 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
 
   useEffect(() => {
     loadMyDonations();
-  }, [loadMyDonations]);
+    loadUserProducts();
+    loadExpiringProducts();
+  }, [loadMyDonations, loadUserProducts, loadExpiringProducts]);
 
   useEffect(() => {
     if (userLocation) {
@@ -90,401 +106,377 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
     }
   }, [userLocation, loadNearbyDonations]);
 
-  // Create donation
+  // Create donation from selected products
   const handleCreateDonation = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (selectedProducts.length === 0) {
+      alert("Please select at least one product to donate.");
+      return;
+    }
+    if (!userLocation) {
+      alert("Please allow location access to create a donation.");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const donationData: DonationCreate = {
+        donor_user_id: user_id,
+        type_of_food: selectedProducts.map(p => p.product_name),
+        latitude: userLocation.lat,
+        longitude: userLocation.lng,
+        status: DonationStatus.Diajukan,
+      };
+
       const response = await fetch("http://localhost:8000/donations/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...formData,
-          user_id,
-          lat: userLocation?.lat || 0,
-          lng: userLocation?.lng || 0,
-        }),
+        body: JSON.stringify(donationData),
       });
 
       const data = await response.json();
       if (data.status === "success") {
         alert("Donation created successfully!");
         setShowCreateForm(false);
-        setFormData({
-          type_of_food: [],
-          description: "",
-          lat: 0,
-          lng: 0,
-          address: "",
-        });
+        setSelectedProducts([]);
         loadMyDonations();
       } else {
-        alert("Error creating donation: " + data.message);
+        alert(`Error: ${data.detail}`);
       }
     } catch (error) {
       console.error("Error creating donation:", error);
-      alert("Error creating donation");
+      alert("Failed to create donation");
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle AI food detection
-  const handleFoodDetected = (foodType: string, analysis: {
-    primary_food_type: string;
-    confidence: number;
-    alternative_types: string[];
-    is_food: boolean;
-  }) => {
-    setFormData(prev => ({
-      ...prev,
-      type_of_food: [foodType, ...analysis.alternative_types.slice(0, 2)].filter(Boolean),
-      description: prev.description || `AI detected: ${foodType} with ${(analysis.confidence * 100).toFixed(1)}% confidence`
-    }));
-    setShowAIClassifier(false);
+  // Toggle product selection
+  const toggleProductSelection = (product: Product) => {
+    setSelectedProducts(prev => {
+      const isSelected = prev.some(p => p.product_id === product.product_id);
+      if (isSelected) {
+        return prev.filter(p => p.product_id !== product.product_id);
+      } else {
+        return [...prev, product];
+      }
+    });
   };
 
-  // Update donation status
-  const updateDonationStatus = async (
-    donationId: number,
-    status: DonationStatus
-  ) => {
-    try {
-      const response = await fetch(
-        `http://localhost:8000/donations/${donationId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ status }),
+  // Add expiring product to selection
+  const addExpiringProduct = (product: Product) => {
+    setSelectedProducts(prev => {
+      const isAlreadySelected = prev.some(p => p.product_id === product.product_id);
+      if (!isAlreadySelected) {
+        return [...prev, product];
+      }
+      return prev;
+    });
+  };
+
+  // Use current location
+  const useMyLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          alert("Could not get your location. Please try again.");
         }
       );
-
-      const data = await response.json();
-      if (data.status === "success") {
-        alert("Status updated successfully!");
-        loadMyDonations();
-        loadNearbyDonations();
-      }
-    } catch (error) {
-      console.error("Error updating status:", error);
     }
   };
 
-  const getStatusColor = (status: DonationStatus) => {
-    switch (status) {
-      case DonationStatus.Diajukan:
-        return "bg-yellow-100 text-yellow-800";
-      case DonationStatus.SiapDijemput:
-        return "bg-blue-100 text-blue-800";
-      case DonationStatus.Diterima:
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+  // Cancel donation and restore products
+  const handleCancelDonation = async (donationId: number) => {
+    if (!confirm("Are you sure you want to cancel this donation? The products will be restored to your inventory.")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8000/donations/${donationId}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+      if (data.status === "success") {
+        alert("Donation cancelled successfully! Products restored to inventory.");
+        loadMyDonations(); // Refresh donations list
+        loadUserProducts(); // Refresh products list
+      } else {
+        alert(`Error: ${data.detail}`);
+      }
+    } catch (error) {
+      console.error("Error cancelling donation:", error);
+      alert("Failed to cancel donation");
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-green-50 to-blue-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Hero Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-green-500 to-green-600 rounded-full mb-6 shadow-lg">
-            <span className="text-3xl text-white">🍽️</span>
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 to-green-400 bg-clip-text text-transparent mb-4">
-            Food Donation Hub
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-            Share food, reduce waste, and make a positive impact in your
-            community
-          </p>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="inline-flex items-center gap-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold px-8 py-4 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-          >
-            <span className="text-xl">➕</span>
-            Create New Donation
-          </button>
-        </div>
+    <div className="w-full max-w-4xl mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-800">Food Donations</h1>
+        <button
+          onClick={() => setShowCreateForm(true)}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
+        >
+          Create Donation
+        </button>
+      </div>
 
-        {/* Create Donation Modal */}
-        {showCreateForm && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-lg transform transition-all duration-300 scale-100">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                  Create New Donation
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateForm(false)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
-                >
-                  <span className="text-2xl">✕</span>
-                </button>
+      {/* Expiring Products Alert */}
+      {expiringProducts.length > 0 && (
+        <div className="bg-orange-100 border-l-4 border-orange-500 p-4 rounded">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="w-5 h-5 text-orange-500">⚠️</div>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-orange-700">
+                <strong>Products Expiring Soon!</strong> You have {expiringProducts.length} products expiring in the next 3 days.
+                Consider donating them to help reduce food waste.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {expiringProducts.map((product) => (
+                  <button
+                    key={product.product_id}
+                    onClick={() => addExpiringProduct(product)}
+                    className="bg-orange-200 hover:bg-orange-300 text-orange-800 px-3 py-1 rounded-full text-xs transition-colors"
+                  >
+                    + {product.product_name} (expires {new Date(product.expiry_date).toLocaleDateString()})
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Donation Modal */}
+      {showCreateForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ marginTop: '10vh', marginBottom: '10vh' }}>
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-xl font-semibold">Create New Donation</h2>
+              <button
+                onClick={() => {
+                  setShowCreateForm(false);
+                  setSelectedProducts([]);
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDonation} className="p-6 space-y-4">
+              {/* Product Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Products to Donate *
+                </label>
+                <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
+                  {userProducts.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No products found. Add some products first!</p>
+                  ) : (
+                    userProducts.map((product) => {
+                      const isSelected = selectedProducts.some(p => p.product_id === product.product_id);
+                      const isExpiring = new Date(product.expiry_date).getTime() - new Date().getTime() <= 3 * 24 * 60 * 60 * 1000;
+                      
+                      return (
+                        <div
+                          key={product.product_id}
+                          className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-blue-100 border-blue-300'
+                              : 'bg-gray-50 hover:bg-gray-100'
+                          }`}
+                          onClick={() => toggleProductSelection(product)}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}} // Handled by parent click
+                              className="w-4 h-4 text-blue-600"
+                            />
+                            <div>
+                              <p className="font-medium">{product.product_name}</p>
+                              <p className="text-sm text-gray-500">
+                                Count: {product.count} | Expires: {new Date(product.expiry_date).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          {isExpiring && (
+                            <span className="bg-orange-200 text-orange-800 px-2 py-1 rounded-full text-xs">
+                              Expiring Soon
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                {selectedProducts.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm text-green-600">
+                      Selected: {selectedProducts.map(p => p.product_name).join(', ')}
+                    </p>
+                  </div>
+                )}
               </div>
 
-              <form onSubmit={handleCreateDonation} className="space-y-6">
+              {/* Location Info */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Pickup Location
+                </label>
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Food Types <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="e.g., Rice, Vegetables, Bread (comma separated)"
-                      className="flex-1 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
-                      value={formData.type_of_food.join(", ")}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          type_of_food: e.target.value
-                            .split(",")
-                            .map((item) => item.trim()),
-                        })
-                      }
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowAIClassifier(!showAIClassifier)}
-                      className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-2 rounded-2xl transition-all duration-300 flex items-center gap-2"
-                    >
-                      🤖 AI
-                    </button>
-                  </div>
-                  
-                  {showAIClassifier && (
-                    <div className="mt-4">
-                      <FoodClassifier 
-                        onFoodDetected={handleFoodDetected}
-                        className="border border-gray-200 rounded-2xl"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Description
-                  </label>
-                  <textarea
-                    placeholder="Additional details about the food..."
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white resize-none"
-                    rows={3}
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Address <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Your address for pickup"
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
-                    value={formData.address}
-                    onChange={(e) =>
-                      setFormData({ ...formData, address: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:transform-none disabled:hover:scale-100"
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="animate-spin">⏳</span>
-                        Creating...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <span>🎁</span>
-                        Create Donation
-                      </span>
-                    )}
-                  </button>
                   <button
                     type="button"
-                    onClick={() => setShowCreateForm(false)}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-2xl transition-all duration-300 border border-gray-200"
+                    onClick={useMyLocation}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors text-sm"
                   >
-                    Cancel
+                    📍 Use My Current Location
                   </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* My Donations */}
-        <div className="grid lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-3xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent mb-6 flex items-center gap-3">
-              <span className="text-2xl">📦</span>
-              My Donations
-            </h2>
-            <div className="space-y-4">
-              {donations.map((donation) => (
-                <div
-                  key={donation.donation_id}
-                  className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-md hover:shadow-lg border border-gray-100 p-6 transition-all duration-300 transform hover:scale-105"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                      <span className="text-xl">🍽️</span>
-                      {donation.type_of_food.join(", ")}
-                    </h3>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${getStatusColor(
-                        donation.status
-                      )}`}
-                    >
-                      {donation.status}
-                    </span>
-                  </div>
-
-                  <p className="text-gray-600 mb-3 leading-relaxed">
-                    {donation.description}
-                  </p>
-                  <div className="flex items-center text-sm text-gray-500 mb-3">
-                    <span className="mr-2">📍</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded-lg">
-                      {donation.address}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center text-xs text-gray-400 mb-4">
-                    <span className="mr-2">⏰</span>
-                    Expires: {new Date(donation.expiry_time).toLocaleString()}
-                  </div>
-
-                  {donation.status === DonationStatus.Diajukan && (
-                    <button
-                      onClick={() =>
-                        updateDonationStatus(
-                          donation.donation_id,
-                          DonationStatus.SiapDijemput
-                        )
-                      }
-                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-4 py-2 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-                    >
-                      <span className="flex items-center justify-center gap-2">
-                        <span>✅</span>
-                        Mark as Ready for Pickup
-                      </span>
-                    </button>
+                  {userLocation ? (
+                    <p className="text-sm text-gray-600">
+                      Location: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-red-600">Location not available. Please allow location access.</p>
                   )}
                 </div>
-              ))}
+              </div>
 
-              {donations.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">📦</div>
-                  <p className="text-gray-500 text-lg font-medium">
-                    No donations yet
-                  </p>
-                  <p className="text-gray-400 text-sm mt-2">
-                    Create your first donation to get started!
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Nearby Donations */}
-          <div className="bg-white rounded-3xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent mb-6 flex items-center gap-3">
-              <span className="text-2xl">🗺️</span>
-              Nearby Donations Available
-            </h2>
-            <div className="space-y-4">
-              {nearbyDonations.map((donation) => (
-                <div
-                  key={donation.donation_id}
-                  className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl shadow-md hover:shadow-lg border border-blue-100 p-6 transition-all duration-300 transform hover:scale-105"
+              {/* Submit Button */}
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setSelectedProducts([]);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                      <span className="text-xl">🍽️</span>
-                      {donation.type_of_food.join(", ")}
-                    </h3>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${getStatusColor(
-                        donation.status
-                      )}`}
-                    >
-                      {donation.status}
-                    </span>
-                  </div>
-
-                  <p className="text-gray-600 mb-3 leading-relaxed">
-                    {donation.description}
-                  </p>
-                  <div className="flex items-center text-sm text-gray-500 mb-3">
-                    <span className="mr-2">📍</span>
-                    <span className="bg-white px-2 py-1 rounded-lg shadow-sm">
-                      {donation.address}
-                    </span>
-                  </div>
-                  <div className="flex items-center text-sm text-blue-600 mb-3 font-semibold">
-                    <span className="mr-2">📏</span>
-                    <span className="bg-blue-100 px-2 py-1 rounded-lg">
-                      {donation.distance_km.toFixed(1)} km away
-                    </span>
-                  </div>
-
-                  <div className="flex items-center text-xs text-gray-400 mb-4">
-                    <span className="mr-2">⏰</span>
-                    Expires: {new Date(donation.expiry_time).toLocaleString()}
-                  </div>
-
-                  {donation.status === DonationStatus.SiapDijemput && (
-                    <button
-                      onClick={() =>
-                        updateDonationStatus(
-                          donation.donation_id,
-                          DonationStatus.Diterima
-                        )
-                      }
-                      className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold px-4 py-2 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-                    >
-                      <span className="flex items-center justify-center gap-2">
-                        <span>🎯</span>
-                        Claim This Donation
-                      </span>
-                    </button>
-                  )}
-                </div>
-              ))}
-
-              {nearbyDonations.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">🗺️</div>
-                  <p className="text-gray-500 text-lg font-medium">
-                    No nearby donations available
-                  </p>
-                  <p className="text-gray-400 text-sm mt-2">
-                    Check back later or expand your search radius!
-                  </p>
-                </div>
-              )}
-            </div>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || selectedProducts.length === 0 || !userLocation}
+                  className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Creating..." : "Create Donation"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
+      )}
+
+      {/* My Donations */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">My Donations</h2>
+        {donations.length === 0 ? (
+          <p className="text-gray-500">No donations yet.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {donations.map((donation) => (
+              <div key={donation.donation_id} className="bg-white p-4 rounded-lg shadow border">
+                <div className="mb-2">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      donation.status === "Diajukan"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : donation.status === "Siap Dijemput"
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-green-100 text-green-800"
+                    }`}
+                  >
+                    {donation.status}
+                  </span>
+                </div>
+                
+                <div className="space-y-1 text-sm">
+                  <p><strong>Foods:</strong> {donation.type_of_food.join(", ")}</p>
+                  <p><strong>Location:</strong> {donation.latitude.toFixed(4)}, {donation.longitude.toFixed(4)}</p>
+                  <p><strong>Created:</strong> {new Date(donation.created_at).toLocaleString()}</p>
+                  <p><strong>Expires:</strong> {new Date(donation.expires_at).toLocaleString()}</p>
+                  {donation.receiver_name && (
+                    <p><strong>Receiver:</strong> {donation.receiver_name}</p>
+                  )}
+                </div>
+                
+                {/* Cancel button - only show for pending donations */}
+                {donation.status === "Diajukan" && (
+                  <div className="mt-3">
+                    <button 
+                      onClick={() => handleCancelDonation(donation.donation_id)}
+                      className="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded transition-colors text-sm"
+                    >
+                      Cancel Donation
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Nearby Donations */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Nearby Donations</h2>
+        {nearbyDonations.length === 0 ? (
+          <p className="text-gray-500">No nearby donations found.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {nearbyDonations.map((donation) => (
+              <div key={donation.donation_id} className="bg-white p-4 rounded-lg shadow border">
+                <div className="mb-2 flex justify-between items-center">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      donation.status === "Diajukan"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : donation.status === "Siap Dijemput"
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-green-100 text-green-800"
+                    }`}
+                  >
+                    {donation.status}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {donation.distance_km.toFixed(1)} km away
+                  </span>
+                </div>
+                
+                <div className="space-y-1 text-sm">
+                  <p><strong>Foods:</strong> {donation.type_of_food.join(", ")}</p>
+                  <p><strong>Donor:</strong> {donation.donor_name || "Anonymous"}</p>
+                  <p><strong>Location:</strong> {donation.latitude.toFixed(4)}, {donation.longitude.toFixed(4)}</p>
+                  <p><strong>Expires:</strong> {new Date(donation.expires_at).toLocaleString()}</p>
+                </div>
+                
+                {donation.status === "Diajukan" && (
+                  <button className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded transition-colors text-sm">
+                    Claim Donation
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
