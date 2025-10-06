@@ -91,3 +91,14 @@ async def delete_account(account_id: int, pool=Depends(get_db_pool)):
             return {"status": "success", "message": "Account deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.get("/{user_id}/admin-status", response_model=dict)
+async def check_admin_status(user_id: int, pool=Depends(get_db_pool)):
+    try:
+        async with pool.acquire() as connection:
+            account = await connection.fetchrow("SELECT is_panitia FROM accounts WHERE user_id = $1", user_id)
+            if not account:
+                raise HTTPException(status_code=404, detail="Account not found")
+            return {"status": "success", "is_panitia": account["is_panitia"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

@@ -8,14 +8,17 @@ from datetime import datetime
 class AccountBase(BaseModel):
     email: EmailStr
     name: str
+    is_panitia: Optional[bool] = False
 
 class AccountCreate(BaseModel):
     email: EmailStr
     name: str
+    is_panitia: Optional[bool] = False
 
 class AccountUpdate(BaseModel):
     email: Optional[EmailStr] = None
     name: Optional[str] = None
+    is_panitia: Optional[bool] = None
 
 class AccountResponse(AccountBase):
     user_id: int  # Auto-increment primary key

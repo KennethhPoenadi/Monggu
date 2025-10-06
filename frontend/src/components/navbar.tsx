@@ -10,7 +10,8 @@ interface NavbarProps {
     | "product"
     | "map"
     | "recipes"
-    | "ai-food";
+    | "ai-food"
+    | "admin";
   unreadNotifications?: number;
   userInfo?: {
     name?: string;
@@ -18,6 +19,7 @@ interface NavbarProps {
     poin: number;
     rank: string;
     user_id: number;
+    is_panitia?: boolean;
   };
   onLogout?: () => void;
 }
@@ -44,6 +46,7 @@ export default function Navbar({
       badge: unreadNotifications,
     },
     { id: "reward" as const, label: "Rewards", icon: "🏆" },
+    ...(userInfo?.is_panitia ? [{ id: "admin" as const, label: "Admin", icon: "⚙️" }] : []),
   ];
 
   const getRoutePath = (id: string) => {

@@ -30,10 +30,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
   // Check if user is admin
   const checkAdminStatus = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:8000/users/${user_id}/admin-status`);
+      const response = await fetch(`http://localhost:8000/accounts/${user_id}/admin-status`);
       const data = await response.json();
       if (data.status === "success") {
-        setIsAdmin(data.isadmin);
+        setIsAdmin(data.is_panitia);
       }
     } catch (error) {
       console.error("Error checking admin status:", error);
