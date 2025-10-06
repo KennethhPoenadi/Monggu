@@ -120,7 +120,7 @@ async def get_user_info(user_id: int, pool=Depends(get_db_pool)):
         async with pool.acquire() as connection:
             user = await connection.fetchrow(
                 """
-                SELECT a.user_id, a.email, a.name, u.poin, u.rank 
+                SELECT a.user_id, a.email, a.name, a.is_panitia, u.poin, u.rank 
                 FROM accounts a 
                 LEFT JOIN users u ON a.user_id = u.user_id 
                 WHERE a.user_id = $1

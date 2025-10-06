@@ -156,6 +156,23 @@ async def update_reward(reward_id: int, reward_data: RewardUpdate, pool=Depends(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+@router.delete("/{reward_id}", response_model=dict)
+async def delete_reward(reward_id: int, pool=Depends(get_db_pool)):
+    """Delete reward (admin function)"""
+    try:
+        async with pool.acquire() as connection:
+            existing_reward = await connection.fetchrow("SELECT * FROM rewards WHERE reward_id = $1", reward_id)
+            if not existing_reward:
+                raise HTTPException(status_code=404, detail="Reward not found")
+            
+            await connection.execute("DELETE FROM rewards WHERE reward_id = $1", reward_id)
+            return {"status": "success", "message": "Reward deleted successfully!"}
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 # USER REWARD CLAIMS
 @router.post("/claim/{reward_id}", response_model=dict)
 async def claim_reward(reward_id: int, user_id: int = Query(..., description="User ID claiming the reward"), pool=Depends(get_db_pool)):

@@ -4,6 +4,7 @@ export interface User {
   poin: number;
   rank: string;
   isadmin: boolean;
+  is_panitia?: boolean;
   created_at: string;
 }
 
@@ -12,6 +13,7 @@ export interface UserCreate {
   poin?: number;
   rank?: string;
   isadmin?: boolean;
+  is_panitia?: boolean;
 }
 
 export interface UserUpdate {
@@ -19,4 +21,5 @@ export interface UserUpdate {
   poin?: number;
   rank?: string;
   isadmin?: boolean;
+  is_panitia?: boolean;
 }
