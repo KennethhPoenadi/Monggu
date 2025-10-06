@@ -69,11 +69,11 @@ class DatabaseManager:
                         user_id SERIAL PRIMARY KEY,
                         email VARCHAR(100) UNIQUE NOT NULL,
                         name VARCHAR(100) NOT NULL,
+                        is_panitia BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
                 
-                # Create users table (game data extension)
                 await connection.execute('''
                     CREATE TABLE IF NOT EXISTS users (
                         id SERIAL PRIMARY KEY,
