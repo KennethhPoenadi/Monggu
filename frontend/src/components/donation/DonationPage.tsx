@@ -249,6 +249,12 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
     }
   };
 
+  // Function to open Google Maps navigation
+  const openInGoogleMaps = (latitude: number, longitude: number) => {
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+    window.open(googleMapsUrl, '_blank');
+  };
+
   // Claim donation and redirect to profile page
   const handleClaimDonation = async (donationId: number) => {
     try {
@@ -466,7 +472,16 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                 
                 <div className="space-y-1 text-sm">
                   <p><strong>Foods:</strong> {donation.type_of_food.join(", ")}</p>
-                  <p><strong>Location:</strong> {donation.latitude.toFixed(4)}, {donation.longitude.toFixed(4)}</p>
+                  <div className="flex items-center justify-between">
+                    <span><strong>Location:</strong> {donation.latitude.toFixed(4)}, {donation.longitude.toFixed(4)}</span>
+                    <button
+                      onClick={() => openInGoogleMaps(donation.latitude, donation.longitude)}
+                      className="ml-2 bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs transition-colors"
+                      title="Navigate in Google Maps"
+                    >
+                      🗺️ Navigate
+                    </button>
+                  </div>
                   <p><strong>Created:</strong> {new Date(donation.created_at).toLocaleString()}</p>
                   <p><strong>Expires:</strong> {new Date(donation.expires_at).toLocaleString()}</p>
                   {donation.receiver_name && (
@@ -532,7 +547,16 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                 <div className="space-y-1 text-sm">
                   <p><strong>Foods:</strong> {donation.type_of_food.join(", ")}</p>
                   <p><strong>Donor:</strong> {donation.donor_name || "Anonymous"}</p>
-                  <p><strong>Location:</strong> {donation.latitude.toFixed(4)}, {donation.longitude.toFixed(4)}</p>
+                  <div className="flex items-center justify-between">
+                    <span><strong>Location:</strong> {donation.latitude.toFixed(4)}, {donation.longitude.toFixed(4)}</span>
+                    <button
+                      onClick={() => openInGoogleMaps(donation.latitude, donation.longitude)}
+                      className="ml-2 bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs transition-colors"
+                      title="Navigate in Google Maps"
+                    >
+                      🗺️ Navigate
+                    </button>
+                  </div>
                   <p><strong>Expires:</strong> {new Date(donation.expires_at).toLocaleString()}</p>
                 </div>
                 

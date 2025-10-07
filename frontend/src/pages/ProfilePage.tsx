@@ -20,6 +20,8 @@ interface ClaimedDonation {
   donor_name: string;
   created_at: string;
   expires_at: string;
+  latitude: number;
+  longitude: number;
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
@@ -44,6 +46,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
     }
   }, [user_id]);
 
+  // Function to open Google Maps navigation
+  const openInGoogleMaps = (latitude: number, longitude: number) => {
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+    window.open(googleMapsUrl, '_blank');
+  };
+
   const loadUserProfile = async (userId: number) => {
     try {
       const response = await fetch(`http://localhost:8000/users/${userId}`);
@@ -51,9 +59,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
       if (data.status === 'success') {
         setUserProfile({
           user_id: data.user.user_id,
-          name: data.user.email.split('@')[0], // Extract name from email
-          email: data.user.email,
-          poin: data.user.poin
+          name: data.user.email ? data.user.email.split('@')[0] : 'User', // Extract name from email with fallback
+          email: data.user.email || '',
+          poin: data.user.poin || 0
         });
       }
     } catch (error) {
@@ -93,14 +101,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          qr_data: scannedData,
-          receiver_id: user_id
+          qr_hash: scannedData
         }),
       });
 
       const data = await response.json();
       if (data.status === 'success') {
-        alert(`Pickup verified successfully! You received ${data.points_earned} points.`);
+        alert(`Pickup verified successfully!`);
         setShowQRScanner(false);
         loadUserProfile(user_id); // Refresh profile to update points
       } else {
@@ -178,6 +185,23 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
                   <p><strong>Donor:</strong> {donation.donor_name}</p>
                   <p><strong>Claimed:</strong> {new Date(donation.created_at).toLocaleString()}</p>
                   <p><strong>Expires:</strong> {new Date(donation.expires_at).toLocaleString()}</p>
+                  {/* Add location and navigate button */}
+                  <div className="flex items-center justify-between mt-2">
+                    <span><strong>Location:</strong> {donation.latitude?.toFixed(4) || 'N/A'}, {donation.longitude?.toFixed(4) || 'N/A'}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (donation.latitude && donation.longitude) {
+                          openInGoogleMaps(donation.latitude, donation.longitude);
+                        } else {
+                          alert('Location not available for this donation');
+                        }
+                      }}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors"
+                    >
+                      🗺️ Navigate
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -185,47 +209,27 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
         )}
       </div>
 
-      {/* QR Code Section */}
+      {/* Pickup Instructions Section */}
       {selectedDonationId && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-2xl font-semibold mb-4">QR Code for Pickup</h2>
+          <h2 className="text-2xl font-semibold mb-4">Pickup Instructions</h2>
           <div className="text-center">
             <p className="mb-4 text-gray-600">
-              Show this QR code to the donor during pickup:
+              When you arrive at the pickup location:
             </p>
             
-            <div className="inline-block p-4 bg-white border-2 border-gray-300 rounded-lg">
-              <img 
-                src={`http://localhost:8000/donations/${selectedDonationId}/qrcode`} 
-                alt="Pickup QR Code" 
-                className="mx-auto"
-                style={{ maxWidth: '250px', maxHeight: '250px' }}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const errorDiv = target.nextElementSibling as HTMLElement;
-                  if (errorDiv) errorDiv.style.display = 'block';
-                }}
-              />
-              <div 
-                className="text-red-500 text-sm mt-2 hidden"
-                style={{ display: 'none' }}
-              >
-                Failed to load QR code. Please try refreshing the page.
-              </div>
-            </div>
-            
-            <div className="mt-4 p-3 bg-blue-50 rounded">
-              <p className="text-sm text-blue-800">
-                <strong>Instructions:</strong>
-              </p>
-              <ol className="text-xs text-blue-600 mt-1 text-left">
-                <li>1. Show this QR code to the donor</li>
-                <li>2. Wait for them to scan it with their phone</li>
-                <li>3. The donation will be automatically completed</li>
-                <li>4. Both you and the donor will receive points</li>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <h3 className="font-semibold text-blue-800 mb-2">📱 For Pickup Verification:</h3>
+              <ol className="text-left text-blue-700 text-sm space-y-1">
+                <li>1. Navigate to the pickup location using the button above</li>
+                <li>2. Meet the donor at the location</li>
+                <li>3. Ask the donor to show their QR code</li>
+                <li>4. Use the "Scan QR for Pickup Verification" button below</li>
+                <li>5. Scan the donor's QR code to complete pickup</li>
               </ol>
             </div>
+            
+            {/* Pickup verification instructions - no QR display needed */}
           </div>
         </div>
       )}

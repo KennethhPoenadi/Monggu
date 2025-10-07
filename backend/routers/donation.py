@@ -395,14 +395,16 @@ async def get_nearby_donations(
     """Get donations within specified radius from user's location"""
     try:
         async with pool.acquire() as connection:
-            # Exclude current user's own donations from nearby results
             query = """
                 SELECT d.*, a.name as donor_name
                 FROM donations d
                 LEFT JOIN accounts a ON d.donor_user_id = a.user_id
-                WHERE d.status = 'Diajukan' AND d.expires_at > NOW()
-                  AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL
-                  AND d.donor_user_id != $1
+                WHERE (
+                    (d.status = 'Diajukan' AND d.donor_user_id != $1) OR
+                    (d.status = 'Siap Dijemput' AND d.receiver_user_id = $1)
+                ) 
+                AND d.expires_at > NOW()
+                AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL
                 ORDER BY d.created_at DESC
             """
             
