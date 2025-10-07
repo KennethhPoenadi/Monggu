@@ -306,3 +306,101 @@ async def get_recipe_categories(pool: asyncpg.Pool = Depends(get_db_pool)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Pydantic model for ingredient search request
+class IngredientSearchRequest(BaseModel):
+    ingredients: List[str]
+
+# New endpoint to find recipes based on available ingredients
+@router.post("/find-by-ingredients", response_model=dict)
+async def find_recipes_by_ingredients(
+    request: IngredientSearchRequest,
+    pool: asyncpg.Pool = Depends(get_db_pool)
+):
+    """
+    Find recipes that can be made with available ingredients.
+    Returns recipes sorted by how many matching ingredients they have.
+    """
+    try:
+        available_ingredients = request.ingredients
+        if not available_ingredients:
+            return {
+                "status": "success",
+                "recipes": [],
+                "message": "No ingredients provided"
+            }
+
+        # Convert ingredients to lowercase for better matching
+        available_lower = [ingredient.lower().strip() for ingredient in available_ingredients]
+        
+        query = """
+            SELECT recipe_id, user_id, title, description, ingredients, instructions,
+                   category, prep_time, servings, difficulty, image_url,
+                   created_at, updated_at,
+                   (
+                       SELECT COUNT(*)
+                       FROM unnest(ingredients) AS recipe_ingredient
+                       WHERE LOWER(recipe_ingredient) = ANY($1)
+                   ) AS matching_count,
+                   array_length(ingredients, 1) AS total_ingredients
+            FROM recipes
+            WHERE (
+                SELECT COUNT(*)
+                FROM unnest(ingredients) AS recipe_ingredient
+                WHERE LOWER(recipe_ingredient) = ANY($1)
+            ) > 0
+            ORDER BY 
+                (CAST(matching_count AS FLOAT) / CAST(total_ingredients AS FLOAT)) DESC,
+                matching_count DESC,
+                created_at DESC
+            LIMIT 20
+        """
+        
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(query, available_lower)
+            
+            recipes = []
+            for row in rows:
+                match_percentage = (row["matching_count"] / row["total_ingredients"]) * 100
+                
+                # Find which ingredients are available vs missing
+                recipe_ingredients_lower = [ing.lower() for ing in row["ingredients"]]
+                available_in_recipe = []
+                missing_in_recipe = []
+                
+                for ingredient in row["ingredients"]:
+                    if ingredient.lower() in available_lower:
+                        available_in_recipe.append(ingredient)
+                    else:
+                        missing_in_recipe.append(ingredient)
+                
+                recipes.append({
+                    "recipe_id": row["recipe_id"],
+                    "user_id": row["user_id"],
+                    "title": row["title"],
+                    "description": row["description"],
+                    "ingredients": row["ingredients"],
+                    "instructions": row["instructions"],
+                    "category": row["category"],
+                    "prep_time": row["prep_time"],
+                    "servings": row["servings"],
+                    "difficulty": row["difficulty"],
+                    "image_url": row["image_url"],
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    "matching_count": row["matching_count"],
+                    "total_ingredients": row["total_ingredients"],
+                    "match_percentage": round(match_percentage, 1),
+                    "available_ingredients": available_in_recipe,
+                    "missing_ingredients": missing_in_recipe,
+                    "can_make": len(missing_in_recipe) == 0
+                })
+        
+        return {
+            "status": "success",
+            "recipes": recipes,
+            "total_found": len(recipes),
+            "available_ingredients": available_ingredients
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

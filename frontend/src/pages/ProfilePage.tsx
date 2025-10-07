@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QRCodeScanner from '../components/QRCodeScanner';
+import ExpiryWarning from '../components/ExpiryWarning';
 
 interface ProfilePageProps {
   user_id: number;
@@ -48,21 +49,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
 
   // Function to open Google Maps navigation
   const openInGoogleMaps = (latitude: number, longitude: number) => {
-    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
-    window.open(googleMapsUrl, '_blank');
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+    window.open(url, '_blank');
   };
 
   const loadUserProfile = async (userId: number) => {
     try {
-      const response = await fetch(`http://localhost:8000/users/${userId}`);
+      const response = await fetch(`http://localhost:8000/accounts/${userId}`);
       const data = await response.json();
       if (data.status === 'success') {
-        setUserProfile({
-          user_id: data.user.user_id,
-          name: data.user.email ? data.user.email.split('@')[0] : 'User', // Extract name from email with fallback
-          email: data.user.email || '',
-          poin: data.user.poin || 0
-        });
+        setUserProfile(data.account);
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
@@ -71,20 +67,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
 
   const loadClaimedDonations = async (userId: number) => {
     try {
-      // Get donations where this user is the receiver
-      const response = await fetch(`http://localhost:8000/donations/?user_id=${userId}&active_only=false`);
+      const response = await fetch(`http://localhost:8000/donations/user/${userId}/claimed`);
       const data = await response.json();
       if (data.status === 'success') {
-        // Filter donations where current user is receiver and status is "Siap Dijemput"
-        const claimed = data.donations.filter((donation: ClaimedDonation & { receiver_user_id: number }) => 
-          donation.receiver_user_id === userId && 
-          (donation.status === 'Siap Dijemput' || donation.status === 'Diterima')
-        );
-        setClaimedDonations(claimed);
+        setClaimedDonations(data.donations);
       }
+      setLoading(false);
     } catch (error) {
       console.error('Error loading claimed donations:', error);
-    } finally {
       setLoading(false);
     }
   };
@@ -127,9 +117,28 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
     );
   }
 
+  // Check for expiring items (mock data for demo)
+  const expiringItems = claimedDonations
+    .filter(donation => {
+      const expiryDate = new Date(donation.expires_at);
+      const today = new Date();
+      const diffTime = expiryDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 2 && diffDays > 0;
+    })
+    .flatMap(donation => donation.type_of_food);
+
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Profile</h1>
+      
+      {/* Food Expiry Warning */}
+      {expiringItems.length > 0 && (
+        <ExpiryWarning 
+          foodItems={expiringItems} 
+          expiryDays={2} 
+        />
+      )}
       
       {/* User Profile Section */}
       {userProfile && (
@@ -155,48 +164,24 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
       {/* Claimed Donations Section */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-2xl font-semibold mb-4">My Claimed Donations</h2>
-        
         {claimedDonations.length === 0 ? (
-          <p className="text-gray-500">No claimed donations yet.</p>
+          <p className="text-gray-600">No claimed donations yet.</p>
         ) : (
           <div className="space-y-4">
             {claimedDonations.map((donation) => (
-              <div 
-                key={donation.donation_id} 
-                className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                  selectedDonationId === donation.donation_id 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => setSelectedDonationId(donation.donation_id)}
-              >
+              <div key={donation.donation_id} className="border rounded-lg p-4">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-lg">Donation #{donation.donation_id}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    donation.status === 'Siap Dijemput' 
-                      ? 'bg-blue-100 text-blue-800' 
-                      : 'bg-green-100 text-green-800'
-                  }`}>
-                    {donation.status}
-                  </span>
-                </div>
-                <div className="space-y-1 text-sm text-gray-600">
-                  <p><strong>Food Items:</strong> {donation.type_of_food.join(', ')}</p>
-                  <p><strong>Donor:</strong> {donation.donor_name}</p>
-                  <p><strong>Claimed:</strong> {new Date(donation.created_at).toLocaleString()}</p>
-                  <p><strong>Expires:</strong> {new Date(donation.expires_at).toLocaleString()}</p>
-                  {/* Add location and navigate button */}
-                  <div className="flex items-center justify-between mt-2">
-                    <span><strong>Location:</strong> {donation.latitude?.toFixed(4) || 'N/A'}, {donation.longitude?.toFixed(4) || 'N/A'}</span>
+                  <div>
+                    <h3 className="font-semibold">{donation.type_of_food.join(', ')}</h3>
+                    <p className="text-sm text-gray-600">From: {donation.donor_name}</p>
+                    <p className="text-sm text-gray-600">Status: {donation.status}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500">
+                      Expires: {new Date(donation.expires_at).toLocaleDateString()}
+                    </p>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (donation.latitude && donation.longitude) {
-                          openInGoogleMaps(donation.latitude, donation.longitude);
-                        } else {
-                          alert('Location not available for this donation');
-                        }
-                      }}
+                      onClick={() => openInGoogleMaps(donation.latitude, donation.longitude)}
                       className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors"
                     >
                       🗺️ Navigate
@@ -228,27 +213,38 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
                 <li>5. Scan the donor's QR code to complete pickup</li>
               </ol>
             </div>
-            
-            {/* Pickup verification instructions - no QR display needed */}
           </div>
         </div>
       )}
 
       {/* Action Buttons */}
-      <div className="flex space-x-4">
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
         <button
           onClick={handleScanQR}
-          className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-semibold transition-colors"
+          className="bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-semibold transition-colors"
         >
           Scan QR for Pickup Verification
         </button>
         
         <button
           onClick={() => navigate('/donation')}
-          className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition-colors"
+          className="bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition-colors"
         >
           Browse Donations
         </button>
+      </div>
+
+      {/* AI Chatbot Info */}
+      <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 mb-6">
+        <div className="flex items-center space-x-3">
+          <span className="text-2xl">🤖</span>
+          <div>
+            <h3 className="font-semibold text-purple-800">AI Recipe Assistant Available</h3>
+            <p className="text-purple-700 text-sm">
+              Look for the floating AI button (🤖) at the bottom-right corner of any page to chat about recipes and cooking tips!
+            </p>
+          </div>
+        </div>
       </div>
       
       {/* QR Scanner Modal */}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { type Product } from "../types/product";
 import FoodClassifier from "../components/FoodClassifier";
+import AIChatbot from "../components/AIChatbot";
 
 interface ProductPageProps {
   user_id: number;
@@ -12,8 +13,10 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [filter, setFilter] = useState<"all" | "expiring" | "fresh">("all");
   const [showAIClassifier, setShowAIClassifier] = useState(false);
+  
+  const [showRecipeChat, setShowRecipeChat] = useState(false);
+  const [selectedProductForRecipe, setSelectedProductForRecipe] = useState<Product | null>(null);
 
-  // Form state
   const [formData, setFormData] = useState({
     product_name: "",
     type_product: "",
@@ -21,7 +24,6 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
     count: 1,
   });
 
-  // Load products
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
@@ -141,6 +143,12 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
     };
   };
 
+  // Handle recipe chat for expiring products
+  const handleAskForRecipe = (product: Product) => {
+    setSelectedProductForRecipe(product);
+    setShowRecipeChat(true);
+  };
+
   // Filter products
   const filteredProducts = products.filter((product) => {
     const daysLeft = getDaysUntilExpiry(product.expiry_date);
@@ -247,9 +255,52 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
                 Add New Product
               </span>
             </button>
+          </div>
 
+          {/* Expiry Warning Banner */}
+          {(() => {
+            const expiringProducts = products.filter(product => {
+              const daysUntilExpiry = getDaysUntilExpiry(product.expiry_date);
+              return daysUntilExpiry <= 7 && daysUntilExpiry >= 0;
+            });
+            
+            if (expiringProducts.length > 0) {
+              return (
+                <div className="mt-6 bg-gradient-to-r from-orange-50 to-red-50 border-l-4 border-orange-500 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <span className="text-2xl">⚠️</span>
+                    </div>
+                    <div className="ml-3 flex-1">
+                      <h3 className="text-lg font-medium text-orange-800">
+                        {expiringProducts.length} product{expiringProducts.length > 1 ? 's' : ''} expiring soon!
+                      </h3>
+                      <p className="mt-1 text-sm text-orange-700">
+                        Get recipe suggestions to use these ingredients before they expire.
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {expiringProducts.slice(0, 3).map(product => (
+                          <span key={product.product_id} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-200 text-orange-800">
+                            {product.product_name}
+                          </span>
+                        ))}
+                        {expiringProducts.length > 3 && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-200 text-orange-800">
+                            +{expiringProducts.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          <div className="mt-6">
             {/* Filter Buttons */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 justify-center">
               <button
                 onClick={() => setFilter("all")}
                 className={`px-6 py-3 rounded-2xl transition-all duration-300 font-semibold ${
@@ -506,9 +557,19 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
                   </div>
 
                   <div className="flex gap-2">
+                    {/* Show "Ask for Recipe" button for expiring products */}
+                    {daysUntilExpiry <= 7 && daysUntilExpiry > 0 && (
+                      <button
+                        onClick={() => handleAskForRecipe(product)}
+                        className="flex-1 bg-purple-100 hover:bg-purple-200 text-purple-700 font-semibold py-2 px-4 rounded-xl transition-all duration-300 text-sm flex items-center justify-center gap-1"
+                      >
+                        🤖 Ask for Recipe
+                      </button>
+                    )}
+                    
                     <button
                       onClick={() => deleteProduct(product.product_id)}
-                      className="flex-1 bg-red-100 hover:bg-red-200 text-red-600 font-semibold py-2 px-4 rounded-xl transition-all duration-300 text-sm"
+                      className={`${daysUntilExpiry <= 7 && daysUntilExpiry > 0 ? 'flex-1' : 'flex-1'} bg-red-100 hover:bg-red-200 text-red-600 font-semibold py-2 px-4 rounded-xl transition-all duration-300 text-sm`}
                     >
                       Delete
                     </button>
@@ -535,6 +596,19 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
           </div>
         )}
       </div>
+
+      {/* AI Recipe Chatbot Modal */}
+      {selectedProductForRecipe && (
+        <AIChatbot
+          isOpen={showRecipeChat}
+          onClose={() => {
+            setShowRecipeChat(false);
+            setSelectedProductForRecipe(null);
+          }}
+          initialIngredients={[selectedProductForRecipe.product_name]}
+          context="expired"
+        />
+      )}
     </div>
   );
 };
