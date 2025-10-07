@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   DonationStatus,
   type Donation,
@@ -12,6 +13,7 @@ interface DonationPageProps {
 }
 
 const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
+  const navigate = useNavigate();
   const [donations, setDonations] = useState<Donation[]>([]);
   const [nearbyDonations, setNearbyDonations] = useState<NearbyDonation[]>([]);
   const [userProducts, setUserProducts] = useState<Product[]>([]);
@@ -20,6 +22,11 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  
+  // QR Code states
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [selectedDonationForQR, setSelectedDonationForQR] = useState<Donation | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<string>('');
 
   // Load user's donations
   const loadMyDonations = useCallback(async () => {
@@ -220,6 +227,55 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
     } catch (error) {
       console.error("Error cancelling donation:", error);
       alert("Failed to cancel donation");
+    }
+  };
+
+  // Handle showing QR code for pickup
+  const handleShowQRCode = async (donation: Donation) => {
+    try {
+      const response = await fetch(`http://localhost:8000/donations/${donation.donation_id}/qrcode`);
+      const data = await response.json();
+      
+      if (data.status === "success") {
+        setQrCodeData(data.qr_code_base64);
+        setSelectedDonationForQR(donation);
+        setShowQRModal(true);
+      } else {
+        alert(`Error generating QR code: ${data.detail}`);
+      }
+    } catch (error) {
+      console.error("Error generating QR code:", error);
+      alert("Failed to generate QR code");
+    }
+  };
+
+  // Claim donation and redirect to profile page
+  const handleClaimDonation = async (donationId: number) => {
+    try {
+      const response = await fetch(`http://localhost:8000/donations/${donationId}/accept`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          donation_id: donationId,
+          receiver_user_id: user_id
+        }),
+      });
+
+      const data = await response.json();
+      if (data.status === "success") {
+        alert("Donation claimed successfully! You can now view the QR code in your profile.");
+        // Store claimed donation ID in localStorage for profile page
+        localStorage.setItem('claimedDonationId', donationId.toString());
+        // Navigate to profile page
+        navigate('/profile');
+      } else {
+        alert(`Error: ${data.detail}`);
+      }
+    } catch (error) {
+      console.error("Error claiming donation:", error);
+      alert("Failed to claim donation. Please try again.");
     }
   };
 
@@ -429,6 +485,18 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                     </button>
                   </div>
                 )}
+                
+                {/* QR Code button - only show for ready donations */}
+                {donation.status === "Siap Dijemput" && (
+                  <div className="mt-3">
+                    <button 
+                      onClick={() => handleShowQRCode(donation)}
+                      className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded transition-colors text-sm"
+                    >
+                      Show QR Code for Pickup
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -469,7 +537,10 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                 </div>
                 
                 {donation.status === "Diajukan" && (
-                  <button className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded transition-colors text-sm">
+                  <button 
+                    onClick={() => handleClaimDonation(donation.donation_id)}
+                    className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded transition-colors text-sm"
+                  >
                     Claim Donation
                   </button>
                 )}
@@ -478,6 +549,62 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
           </div>
         )}
       </div>
+      
+      {/* QR Code Modal */}
+      {showQRModal && selectedDonationForQR && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold mb-4">QR Code for Pickup</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Show this QR code to the receiver when they arrive for pickup
+              </p>
+              
+              {/* QR Code Display */}
+              <div className="mb-4 p-4 bg-gray-50 rounded">
+                {qrCodeData ? (
+                  <img 
+                    src={`data:image/png;base64,${qrCodeData}`} 
+                    alt="QR Code"
+                    className="mx-auto max-w-48 max-h-48"
+                  />
+                ) : (
+                  <div className="text-gray-500">Loading QR code...</div>
+                )}
+              </div>
+              
+              {/* Donation Info */}
+              <div className="text-left text-sm mb-4 p-3 bg-blue-50 rounded">
+                <p><strong>Donation:</strong> {selectedDonationForQR.type_of_food.join(", ")}</p>
+                <p><strong>Receiver:</strong> {selectedDonationForQR.receiver_name}</p>
+                <p><strong>Status:</strong> {selectedDonationForQR.status}</p>
+              </div>
+              
+              {/* Instructions */}
+              <div className="text-left text-xs text-gray-600 mb-4">
+                <p><strong>Instructions:</strong></p>
+                <ol className="list-decimal list-inside mt-1">
+                  <li>Wait for the receiver to arrive</li>
+                  <li>Ask them to scan this QR code</li>
+                  <li>Once scanned, the pickup will be verified</li>
+                  <li>Both parties will receive points</li>
+                </ol>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setShowQRModal(false);
+                  setSelectedDonationForQR(null);
+                  setQrCodeData('');
+                }}
+                className="w-full bg-gray-500 hover:bg-gray-600 text-white py-2 rounded transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

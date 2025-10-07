@@ -11,7 +11,8 @@ interface NavbarProps {
     | "map"
     | "recipes"
     | "ai-food"
-    | "admin";
+    | "admin"
+    | "profile";
   unreadNotifications?: number;
   userInfo?: {
     name?: string;
@@ -46,6 +47,7 @@ export default function Navbar({
       badge: unreadNotifications,
     },
     { id: "reward" as const, label: "Rewards", icon: "🏆" },
+    { id: "profile" as const, label: "Profile", icon: "👤" },
     ...(userInfo?.is_panitia ? [{ id: "admin" as const, label: "Admin", icon: "⚙️" }] : []),
   ];
 
