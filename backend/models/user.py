@@ -1,32 +1,37 @@
 """
 User model and schema definitions
 """
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
-class UserBase(BaseModel):
-    """Base user schema"""
-    name: str
-    email: EmailStr
 
-class UserCreate(UserBase):
-    """Schema for creating a new user"""
-    pass
+class UserBase(BaseModel):
+    user_id: int  # Foreign key to accounts.user_id
+    poin: int = 0
+    rank: str = "beginner"
+    isadmin: bool = False
+
+
+class UserCreate(BaseModel):
+    user_id: int
+    poin: int = 0
+    rank: str = "beginner"
+    isadmin: bool = False
+
 
 class UserUpdate(BaseModel):
-    """Schema for updating user"""
-    name: Optional[str] = None
-    email: Optional[EmailStr] = None
+    poin: Optional[int] = None
+    rank: Optional[str] = None
+    isadmin: Optional[bool] = None
+
 
 class UserResponse(UserBase):
-    """Schema for user response"""
-    id: int
     created_at: datetime
     
     class Config:
         from_attributes = True
 
+
 class UserInDB(UserResponse):
-    """User model as stored in database"""
     pass
