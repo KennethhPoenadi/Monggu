@@ -10,6 +10,8 @@ import MapPage from "./pages/MapPage";
 import RecipesPage from "./pages/RecipesPage";
 import AIFoodPage from "./pages/AIFoodPage";
 import AdminPage from "./pages/AdminPage";
+import ProfilePage from "./pages/ProfilePage";
+import DonorPickupVerificationPage from "./pages/DonorPickupVerificationPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./index.css";
 import { useEffect, useState, useCallback } from "react";
@@ -50,6 +52,8 @@ function Dashboard({
         return "ai-food";
       case "/admin":
         return "admin";
+      case "/profile":
+        return "profile";
       default:
         return "home";
     }
@@ -101,6 +105,8 @@ function Dashboard({
           <Route path="/recipes" element={<RecipesPage user_id={userInfo.user_id} />} />
           <Route path="/ai-food" element={<AIFoodPage />} />
           <Route path="/admin" element={<AdminPage user_id={userInfo.user_id} />} />
+          <Route path="/profile" element={<ProfilePage user_id={userInfo.user_id} />} />
+          <Route path="/donor-verification" element={<DonorPickupVerificationPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </div>

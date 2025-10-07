@@ -1,11 +1,16 @@
-"""
-Donation-related API endpoints
-"""
 from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import asyncpg
 from datetime import datetime, timedelta
-from models.donation import DonationCreate, DonationResponse, DonationUpdate, DonationStatus
+import qrcode
+import io
+import hashlib
+import base64
+from models.donation import (
+    DonationCreate, DonationResponse, DonationUpdate, DonationStatus,
+    QRCodeVerification, DonationPickupRequest
+)
 from database.connection import db_manager
 
 router = APIRouter(
@@ -20,6 +25,37 @@ async def get_db_pool():
     if not pool:
         raise HTTPException(status_code=500, detail="Database connection not available")
     return pool
+
+def generate_qr_hash(donation_id: int) -> str:
+    """Generate QR hash using donation ID and salt 260605"""
+    salt = "260605"
+    raw_string = f"{donation_id}:{salt}"
+    qr_hash = hashlib.sha256(raw_string.encode()).hexdigest()[:16]  # Take first 16 chars
+    return qr_hash
+
+def verify_qr_hash(donation_id: int, qr_hash: str) -> bool:
+    """Verify QR hash matches donation ID"""
+    expected_hash = generate_qr_hash(donation_id)
+    return qr_hash == expected_hash
+
+def create_qr_code(donation_id: int) -> bytes:
+    """Create QR code image from donation ID hash"""
+    qr_hash = generate_qr_hash(donation_id)
+    
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(qr_hash)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format='PNG')
+    img_bytes.seek(0)
+    return img_bytes.getvalue()
 
 @router.post("/", response_model=dict)
 async def create_donation(donation_data: DonationCreate, pool=Depends(get_db_pool)):
@@ -403,5 +439,137 @@ async def get_nearby_donations(
             donations.sort(key=lambda x: x['distance_km'])
                 
             return {"status": "success", "donations": donations}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.post("/{donation_id}/accept", response_model=dict)
+async def accept_donation(
+    donation_id: int, 
+    pickup_request: DonationPickupRequest, 
+    pool=Depends(get_db_pool)
+):
+    """Accept a donation and generate QR code for pickup verification"""
+    try:
+        async with pool.acquire() as connection:
+            # Check if donation exists and is available
+            existing_donation = await connection.fetchrow(
+                "SELECT * FROM donations WHERE donation_id = $1 AND status = 'Diajukan' AND expires_at > NOW()", 
+                donation_id
+            )
+            
+            if not existing_donation:
+                raise HTTPException(status_code=404, detail="Donation not found or not available")
+            
+            # Check if receiver user exists
+            receiver_exists = await connection.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM accounts WHERE user_id = $1)",
+                pickup_request.receiver_user_id
+            )
+            
+            if not receiver_exists:
+                raise HTTPException(status_code=400, detail="Receiver user does not exist")
+            
+            # Generate QR hash for this donation
+            qr_hash = generate_qr_hash(donation_id)
+            
+            # Update donation with receiver info
+            updated_donation = await connection.fetchrow(
+                """UPDATE donations 
+                   SET receiver_user_id = $1, status = 'Siap Dijemput'
+                   WHERE donation_id = $2 
+                   RETURNING *""",
+                pickup_request.receiver_user_id, donation_id
+            )
+            
+            return {
+                "status": "success", 
+                "message": "Donation accepted successfully!",
+                "donation": dict(updated_donation),
+                "qr_hash": qr_hash
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.get("/{donation_id}/qrcode")
+async def get_qr_code(donation_id: int, pool=Depends(get_db_pool)):
+    """Generate QR code for donation pickup verification"""
+    try:
+        async with pool.acquire() as connection:
+            donation = await connection.fetchrow(
+                """SELECT * FROM donations 
+                   WHERE donation_id = $1 AND status = 'Siap Dijemput'""", 
+                donation_id
+            )
+            
+            if not donation:
+                raise HTTPException(status_code=404, detail="Donation not found or not ready for pickup")
+            
+            # Generate QR code image with hashed donation ID
+            qr_image_bytes = create_qr_code(donation_id)
+            
+            # Convert to base64 string
+            qr_base64 = base64.b64encode(qr_image_bytes).decode('utf-8')
+            
+            return {
+                "status": "success",
+                "qr_code_base64": qr_base64,
+                "donation_id": donation_id
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.post("/verify-pickup", response_model=dict)
+async def verify_pickup(verification: QRCodeVerification, pool=Depends(get_db_pool)):
+    """Verify QR code hash and mark donation as completed"""
+    try:
+        async with pool.acquire() as connection:
+            # Find all donations with 'Siap Dijemput' status
+            donations = await connection.fetch(
+                """SELECT * FROM donations 
+                   WHERE status = 'Siap Dijemput'"""
+            )
+            
+            # Check which donation matches the QR hash
+            matching_donation = None
+            for donation in donations:
+                if verify_qr_hash(donation['donation_id'], verification.qr_hash):
+                    matching_donation = donation
+                    break
+            
+            if not matching_donation:
+                raise HTTPException(status_code=400, detail="Invalid QR code or donation not ready")
+            
+            # Update status to completed
+            await connection.execute(
+                "UPDATE donations SET status = 'Diterima' WHERE donation_id = $1",
+                matching_donation['donation_id']
+            )
+            
+            # Award points to donor
+            await connection.execute(
+                "UPDATE users SET poin = poin + 10 WHERE user_id = $1",
+                matching_donation['donor_user_id']
+            )
+            
+            # Award points to receiver
+            await connection.execute(
+                "UPDATE users SET poin = poin + 5 WHERE user_id = $1",
+                matching_donation['receiver_user_id']
+            )
+            
+            return {
+                "status": "success",
+                "message": "Pickup verified! Donation completed successfully. Points awarded to both donor and receiver.",
+                "donation_id": matching_donation['donation_id']
+            }
+            
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
