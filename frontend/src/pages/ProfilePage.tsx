@@ -244,7 +244,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id }) => {
         </button>
         
         <button
-          onClick={() => navigate('/donations')}
+          onClick={() => navigate('/donation')}
           className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition-colors"
         >
           Browse Donations
