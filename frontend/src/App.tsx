@@ -7,7 +7,6 @@ import RewardPage from "./components/reward/RewardPage";
 import HomePage from "./pages/HomePage";
 import ProductPage from "./pages/ProductPage";
 import MapPage from "./pages/MapPage";
-import AIFoodPage from "./pages/AIFoodPage";
 import AdminPage from "./pages/AdminPage";
 import ProfilePage from "./pages/ProfilePage";
 import DonorPickupVerificationPage from "./pages/DonorPickupVerificationPage";
@@ -99,7 +98,6 @@ function Dashboard({
           <Route path="/reward" element={<RewardPage user_id={userInfo.user_id} />} />
           <Route path="/product" element={<ProductPage user_id={userInfo.user_id} />} />
           <Route path="/map" element={<MapPage user_id={userInfo.user_id} />} />
-          <Route path="/ai-food" element={<AIFoodPage />} />
           <Route path="/admin" element={<AdminPage user_id={userInfo.user_id} />} />
           <Route path="/profile" element={<ProfilePage user_id={userInfo.user_id} />} />
           <Route path="/donor-verification" element={<DonorPickupVerificationPage />} />
