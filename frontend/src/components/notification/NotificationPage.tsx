@@ -10,13 +10,11 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  // Load notifications
+  // --- load
   const loadNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `http://localhost:8000/notifications/user/${user_id}`
-      );
+      const response = await fetch(`http://localhost:8000/notifications/user/${user_id}`);
       const data = await response.json();
       if (data.status === "success") {
         setNotifications(data.notifications);
@@ -32,28 +30,18 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
     loadNotifications();
   }, [loadNotifications]);
 
-  // Mark notification as read
+  // --- actions
   const markAsRead = async (notificationId: number) => {
     try {
-      const response = await fetch(
-        `http://localhost:8000/notifications/${notificationId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ is_read: true }),
-        }
-      );
-
+      const response = await fetch(`http://localhost:8000/notifications/${notificationId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_read: true }),
+      });
       const data = await response.json();
       if (data.status === "success") {
-        setNotifications(
-          notifications.map((notif) =>
-            notif.notification_id === notificationId
-              ? { ...notif, is_read: true }
-              : notif
-          )
+        setNotifications((prev) =>
+          prev.map((n) => (n.notification_id === notificationId ? { ...n, is_read: true } : n))
         );
       }
     } catch (error) {
@@ -61,28 +49,22 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
     }
   };
 
-  // Mark all as read
   const markAllAsRead = async () => {
     try {
       const response = await fetch(
         `http://localhost:8000/notifications/user/${user_id}/mark-all-read`,
-        {
-          method: "PUT",
-        }
+        { method: "PUT" }
       );
-
       const data = await response.json();
       if (data.status === "success") {
-        setNotifications(
-          notifications.map((notif) => ({ ...notif, is_read: true }))
-        );
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       }
     } catch (error) {
-      console.error("Error marking all notifications as read:", error);
+      console.error("Error marking all as read:", error);
     }
   };
 
-  // Get notification icon
+  // --- ui helpers
   const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
       case NotificationType.DonationApproved:
@@ -100,78 +82,103 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
     }
   };
 
-  // Get notification color
-  const getNotificationColor = (type: NotificationType) => {
+  const leftBorderByType = (type: NotificationType) => {
     switch (type) {
       case NotificationType.DonationApproved:
-        return "border-l-green-500";
+        return "border-l-emerald-500";
       case NotificationType.DonationReceived:
-        return "border-l-blue-500";
+        return "border-l-sky-500";
       case NotificationType.ProductExpiring:
-        return "border-l-orange-500";
+        return "border-l-amber-500";
       case NotificationType.RewardEarned:
         return "border-l-yellow-500";
       case NotificationType.SystemAnnouncement:
-        return "border-l-purple-500";
+        return "border-l-violet-500";
       default:
-        return "border-l-gray-500";
+        return "border-l-slate-500";
     }
   };
 
-  // Filter notifications
-  const filteredNotifications = notifications.filter((notification) => {
-    if (filter === "unread") {
-      return !notification.is_read;
+  // warna glow (rgba) by type
+  const glowRGBA = (type: NotificationType) => {
+    switch (type) {
+      case NotificationType.DonationApproved:
+        return "rgba(16,185,129,.12)"; // emerald-500
+      case NotificationType.DonationReceived:
+        return "rgba(56,189,248,.12)"; // sky-400
+      case NotificationType.ProductExpiring:
+        return "rgba(245,158,11,.12)"; // amber-500
+      case NotificationType.RewardEarned:
+        return "rgba(234,179,8,.12)"; // yellow-500
+      case NotificationType.SystemAnnouncement:
+        return "rgba(139,92,246,.12)"; // violet-500
+      default:
+        return "rgba(148,163,184,.12)"; // slate-400
     }
-    return true;
-  });
+  };
 
-  const unreadCount = notifications.filter((notif) => !notif.is_read).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  const filteredNotifications = notifications.filter((n) =>
+    filter === "unread" ? !n.is_read : true
+  );
+
+  // follow-mouse glow handler
+  const handleGlowMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--x", `${e.clientX - rect.left}px`);
+    el.style.setProperty("--y", `${e.clientY - rect.top}px`);
+  };
+  const handleGlowLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget as HTMLElement;
+    el.style.removeProperty("--x");
+    el.style.removeProperty("--y");
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-green-50 p-6">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-3xl shadow-lg p-8 mb-8">
-          <div className="text-center mb-6">
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent mb-4">
+    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
+      {/* dekor blob */}
+      <svg
+        className="pointer-events-none absolute -left-24 -top-24 h-[36rem] w-[36rem] opacity-20 blur-3xl"
+        viewBox="0 0 200 200"
+        aria-hidden="true"
+      >
+        <path
+          d="M53.6,-58.2C67.2,-45.5,74.9,-24.7,73.8,-5.7C72.8,13.3,63.1,26.6,49.5,38.9C36,51.3,18,62.7,-0.3,63.1C-18.5,63.6,-36.9,53.1,-49.1,39.6C-61.3,26.1,-67.3,9.6,-65.7,-6.1C-64.1,-21.7,-54.8,-36.5,-42.1,-49.5C-29.4,-62.6,-14.7,-73.9,3.1,-77.9C20.9,-81.9,41.9,-78.6,53.6,-58.2Z"
+          transform="translate(100 100)"
+          className="fill-sky-500/25"
+        />
+      </svg>
+
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        {/* Header card */}
+        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/70 p-8 shadow-xl backdrop-blur-xl">
+          <div className="text-center">
+            <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-sky-400 to-emerald-400 bg-clip-text text-transparent">
               📱 Notifications
             </h1>
-            <p className="text-gray-600 text-lg">
-              Stay updated with your donation activities
-            </p>
+            <p className="mt-3 text-slate-300">Stay updated with your donation activities</p>
           </div>
 
-          <div className="flex items-center justify-center mb-6">
-            {unreadCount > 0 && (
-              <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-2xl shadow-lg">
-                <span className="flex items-center gap-2 font-semibold">
-                  <span className="animate-pulse">🔔</span>
-                  {unreadCount} unread notification{unreadCount > 1 ? "s" : ""}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Filters and Actions */}
-          <div className="flex flex-wrap gap-4 items-center justify-center">
+          <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <div className="flex gap-2">
               <button
                 onClick={() => setFilter("all")}
-                className={`px-6 py-3 rounded-2xl transition-all duration-300 font-semibold ${
+                className={`rounded-2xl px-6 py-3 font-semibold transition-all ${
                   filter === "all"
-                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                    ? "bg-sky-600 text-white shadow hover:bg-sky-700"
+                    : "border border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-900"
                 }`}
               >
                 All ({notifications.length})
               </button>
               <button
                 onClick={() => setFilter("unread")}
-                className={`px-6 py-3 rounded-2xl transition-all duration-300 font-semibold ${
+                className={`rounded-2xl px-6 py-3 font-semibold transition-all ${
                   filter === "unread"
-                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                    ? "bg-emerald-600 text-white shadow hover:bg-emerald-700"
+                    : "border border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-900"
                 }`}
               >
                 Unread ({unreadCount})
@@ -181,102 +188,114 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold px-6 py-3 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 font-semibold text-white shadow-lg transition-all hover:scale-[1.01] hover:from-emerald-700 hover:to-sky-700 hover:shadow-emerald-600/20"
               >
-                <span className="flex items-center gap-2">
-                  <span>✅</span>
-                  Mark All as Read
-                </span>
+                ✅ Mark All as Read
               </button>
             )}
           </div>
-        </div>
 
-        {/* Loading State */}
+          {unreadCount > 0 && (
+            <div className="mt-6 flex justify-center">
+              <span className="inline-flex items-center gap-2 rounded-2xl bg-rose-500/15 px-4 py-2 font-medium text-rose-300">
+                🔔 {unreadCount} unread
+              </span>
+            </div>
+          )}
+        </section>
+
+        {/* Loading */}
         {loading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"></div>
-            <p className="mt-4 text-gray-600 text-lg font-medium">
-              Loading notifications...
-            </p>
+          <div className="py-12 text-center">
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-600 border-t-sky-500" />
+            <p className="mt-4 text-slate-300">Loading notifications...</p>
           </div>
         )}
 
-        {/* Notifications List */}
+        {/* List */}
         {!loading && (
-          <div className="space-y-4">
-            {filteredNotifications.map((notification) => (
-              <div
-                key={notification.notification_id}
-                className={`bg-white rounded-2xl shadow-lg hover:shadow-xl border-l-4 p-6 cursor-pointer transition-all duration-300 transform hover:scale-105 ${getNotificationColor(
-                  notification.notification_type
-                )} ${
-                  !notification.is_read
-                    ? "bg-gradient-to-r from-blue-50 to-white"
-                    : ""
-                }`}
-                onClick={() =>
-                  !notification.is_read &&
-                  markAsRead(notification.notification_id)
-                }
-              >
-                <div className="flex items-start gap-4">
-                  <div className="text-3xl bg-gray-100 p-3 rounded-2xl">
-                    {getNotificationIcon(notification.notification_type)}
-                  </div>
+          <section className="mt-8 space-y-4">
+            {filteredNotifications.map((n) => {
+              const isUnread = !n.is_read;
+              return (
+                <div
+                  key={n.notification_id}
+                  onClick={() => isUnread && markAsRead(n.notification_id)}
+                  onMouseMove={handleGlowMove}
+                  onMouseLeave={handleGlowLeave}
+                  className={`group relative cursor-pointer overflow-hidden rounded-2xl border p-6 shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl ${leftBorderByType(
+                    n.notification_type
+                  )} ${
+                    isUnread
+                      ? "border-slate-700/60 bg-slate-900/70"
+                      : "border-slate-700/50 bg-slate-900/60"
+                  }`}
+                >
+                  {/* glow overlay mengikuti kursor */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 -z-10 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                    style={{
+                      background: `radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), ${glowRGBA(
+                        n.notification_type
+                      )}, transparent 40%)`,
+                    }}
+                  />
 
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3
-                        className={`font-bold text-lg ${
-                          !notification.is_read
-                            ? "text-blue-800"
-                            : "text-gray-800"
-                        }`}
-                      >
-                        {notification.title}
-                      </h3>
-                      {!notification.is_read && (
-                        <span className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></span>
-                      )}
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-2xl border border-slate-700 bg-slate-800/60 p-3 text-2xl">
+                      {getNotificationIcon(n.notification_type)}
                     </div>
 
-                    <p className="text-gray-600 mb-3 leading-relaxed">
-                      {notification.message}
-                    </p>
+                    <div className="flex-1">
+                      <div className="mb-1 flex items-center gap-3">
+                        <h3
+                          className={`text-lg font-bold ${
+                            isUnread ? "text-sky-200" : "text-slate-100"
+                          }`}
+                        >
+                          {n.title}
+                        </h3>
+                        {isUnread && <span className="h-2 w-2 animate-pulse rounded-full bg-sky-400" />}
+                      </div>
 
-                    <div className="flex items-center gap-4 text-sm text-gray-400">
-                      <span className="bg-gray-100 px-2 py-1 rounded-lg font-medium">
-                        {notification.notification_type}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        {new Date(notification.created_at).toLocaleString()}
-                      </span>
+                      <p className="mb-3 leading-relaxed text-slate-300">{n.message}</p>
+
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
+                        <span className="rounded-lg border border-slate-700 bg-slate-800/60 px-2 py-1 font-medium">
+                          {String(n.notification_type)}
+                        </span>
+                        <span>•</span>
+                        <span>{new Date(n.created_at).toLocaleString()}</span>
+                        {n.is_read && (
+                          <>
+                            <span>•</span>
+                            <span className="text-emerald-300">Read</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
-            {filteredNotifications.length === 0 && !loading && (
-              <div className="text-center py-16 bg-white rounded-3xl shadow-lg">
-                <div className="text-8xl mb-6">📭</div>
-                <h3 className="text-2xl font-bold text-gray-600 mb-3">
-                  {filter === "unread"
-                    ? "No unread notifications"
-                    : "No notifications yet"}
+            {filteredNotifications.length === 0 && (
+              <div className="grid place-items-center rounded-3xl border border-slate-700/60 bg-slate-900/70 p-16 text-center shadow-xl">
+                <div className="mb-6 text-8xl">📭</div>
+                <h3 className="mb-3 text-2xl font-bold text-slate-100">
+                  {filter === "unread" ? "No unread notifications" : "No notifications yet"}
                 </h3>
-                <p className="text-gray-500 text-lg">
+                <p className="text-slate-400">
                   {filter === "unread"
                     ? "All caught up! You have no unread notifications."
                     : "Notifications about your donations and rewards will appear here."}
                 </p>
               </div>
             )}
-          </div>
+          </section>
         )}
-      </div>
+      </main>
     </div>
   );
 };

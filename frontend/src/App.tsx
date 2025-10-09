@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation, BrowserRouter } from "react-router-dom";
+import { Routes, Route, useLocation, BrowserRouter, Navigate  } from "react-router-dom";
 import Navbar from "./components/navbar";
 import Footer from "./components/footer";
 import DonationPage from "./components/donation/DonationPage";
@@ -107,7 +107,17 @@ function Dashboard({
           <Route path="/admin" element={<AdminPage user_id={userInfo.user_id} />} />
           <Route path="/profile" element={<ProfilePage user_id={userInfo.user_id} />} />
           <Route path="/donor-verification" element={<DonorPickupVerificationPage />} />
-          <Route path="*" element={<NotFoundPage />} />
+          <Route path="/pageNotFound" element={<NotFoundPage />} />
+          <Route
+            path="*"
+             element={
+            <Navigate
+            to="/pageNotFound"  
+            replace
+            state={{ from: location.pathname + location.search + location.hash }} // opsional
+            />
+              }
+        />
         </Routes>
       </div>
 

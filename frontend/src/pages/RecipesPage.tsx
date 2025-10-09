@@ -20,7 +20,39 @@ interface RecipesPageProps {
   user_id: number;
 }
 
-const RecipesPage: React.FC<RecipesPageProps> = () => {
+const categoryIcon = (c: string) => {
+  switch (c) {
+    case "Vegetables":
+      return "🥬";
+    case "Fruits":
+      return "🍎";
+    case "Grains":
+      return "🌾";
+    case "Dairy":
+      return "🧀";
+    case "Meat":
+      return "🥩";
+    case "Snacks":
+      return "🍪";
+    default:
+      return "📝";
+  }
+};
+
+const diffPill = (d: Recipe["difficulty"]) => {
+  switch (d) {
+    case "Easy":
+      return "bg-emerald-500/15 text-emerald-300";
+    case "Medium":
+      return "bg-amber-500/15 text-amber-300";
+    case "Hard":
+      return "bg-rose-500/15 text-rose-300";
+    default:
+      return "bg-slate-700/50 text-slate-200";
+  }
+};
+
+const RecipesPage: React.FC<RecipesPageProps> = ({ user_id: _user_id }) => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [loading, setLoading] = useState(false);
@@ -28,51 +60,43 @@ const RecipesPage: React.FC<RecipesPageProps> = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
-  // Load recipes from API
+  // Load categories
+  const loadCategories = useCallback(async () => {
+    try {
+      const res = await fetch("http://localhost:8000/recipes/categories/list");
+      const data = await res.json();
+
+      if (data.status === "success") {
+        const apiCats: string[] = Array.isArray(data.categories) ? data.categories : [];
+        const cleaned = Array.from(
+          new Set(apiCats.filter(Boolean).filter((c) => c.toLowerCase() !== "all"))
+        );
+        setCategories(["All", ...cleaned]);
+      }
+    } catch (e) {
+      console.error("Error loading categories:", e);
+    }
+  }, []);
+
+  // Load recipes
   const loadRecipes = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (selectedCategory !== "All") {
-        params.append("category", selectedCategory);
-      }
-      if (searchTerm.trim()) {
-        params.append("search", searchTerm.trim());
-      }
+      if (selectedCategory !== "All") params.append("category", selectedCategory);
+      if (searchTerm.trim()) params.append("search", searchTerm.trim());
 
-      const url = `http://localhost:8000/recipes/${
-        params.toString() ? `?${params.toString()}` : ""
-      }`;
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.status === "success") {
-        setRecipes(data.recipes);
-      } else {
-        console.error("Error loading recipes:", data.message);
-      }
-    } catch (error) {
-      console.error("Error loading recipes:", error);
+      const url = `http://localhost:8000/recipes/${params.toString() ? `?${params}` : ""}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status === "success") setRecipes(data.recipes);
+      else console.error("Error loading recipes:", data.message);
+    } catch (e) {
+      console.error("Error loading recipes:", e);
     } finally {
       setLoading(false);
     }
   }, [selectedCategory, searchTerm]);
-
-  // Load categories from API
-  const loadCategories = useCallback(async () => {
-    try {
-      const response = await fetch(
-        "http://localhost:8000/recipes/categories/list"
-      );
-      const data = await response.json();
-
-      if (data.status === "success") {
-        setCategories(data.categories);
-      }
-    } catch (error) {
-      console.error("Error loading categories:", error);
-    }
-  }, []);
 
   useEffect(() => {
     loadCategories();
@@ -82,287 +106,237 @@ const RecipesPage: React.FC<RecipesPageProps> = () => {
     loadRecipes();
   }, [loadRecipes]);
 
-  // Recipes are already filtered by the API
-  const filteredRecipes = recipes;
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "Easy":
-        return "bg-green-100 text-green-800";
-      case "Medium":
-        return "bg-yellow-100 text-yellow-800";
-      case "Hard":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
+  // glow follow-mouse di kartu (tanpa CSS global)
+  const handleGlowMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--x", `${e.clientX - rect.left}px`);
+    el.style.setProperty("--y", `${e.clientY - rect.top}px`);
   };
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "Vegetables":
-        return "🥬";
-      case "Fruits":
-        return "🍎";
-      case "Grains":
-        return "🌾";
-      case "Dairy":
-        return "🧀";
-      case "Meat":
-        return "🥩";
-      case "Snacks":
-        return "🍪";
-      default:
-        return "📝";
-    }
+  const handleGlowLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget as HTMLElement;
+    el.style.removeProperty("--x");
+    el.style.removeProperty("--y");
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-orange-50 to-yellow-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-3xl shadow-lg p-8 mb-8">
-          <div className="text-center mb-6">
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 to-yellow-600 bg-clip-text text-transparent mb-4">
+    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
+      {/* dekor blob */}
+      <svg
+        className="pointer-events-none absolute -left-24 -top-24 h-[36rem] w-[36rem] opacity-20 blur-3xl"
+        viewBox="0 0 200 200"
+        aria-hidden
+      >
+        <path
+          d="M53.6,-58.2C67.2,-45.5,74.9,-24.7,73.8,-5.7C72.8,13.3,63.1,26.6,49.5,38.9C36,51.3,18,62.7,-0.3,63.1C-18.5,63.6,-36.9,53.1,-49.1,39.6C-61.3,26.1,-67.3,9.6,-65.7,-6.1C-64.1,-21.7,-54.8,-36.5,-42.1,-49.5C-29.4,-62.6,-14.7,-73.9,3.1,-77.9C20.9,-81.9,41.9,-78.6,53.6,-58.2Z"
+          transform="translate(100 100)"
+          className="fill-amber-500/25"
+        />
+      </svg>
+
+      <main className="mx-auto max-w-7xl px-6 py-10">
+        {/* HEADER */}
+        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/70 p-8 shadow-xl backdrop-blur-xl">
+          <div className="mb-6 text-center">
+            <h1 className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-4xl font-extrabold text-transparent md:text-5xl">
               📝 Recipe Collection
             </h1>
-            <p className="text-gray-600 text-lg">
+            <p className="mt-2 text-slate-300">
               Creative recipes to reduce food waste and make delicious meals
             </p>
           </div>
 
-          {/* Search and Filter */}
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
+          {/* Search + Filter */}
+          <div className="flex flex-col items-center justify-center gap-4 md:flex-row">
             <div className="relative flex-1 max-w-md">
               <input
                 type="text"
                 placeholder="Search recipes, ingredients..."
-                className="w-full border border-gray-200 rounded-2xl px-4 py-3 pl-12 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-gray-50"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    loadRecipes();
-                  }
-                }}
+                onKeyDown={(e) => e.key === "Enter" && loadRecipes()}
+                className="w-full rounded-2xl border border-slate-700 bg-slate-800/80 px-4 py-3 pl-12 text-slate-100 outline-none placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30"
               />
-              <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl">
-                🔍
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl text-slate-400">
+                🔎
               </span>
             </div>
 
-            <div className="flex gap-2 flex-wrap justify-center">
-              {categories.map((category) => (
+            <div className="flex flex-wrap justify-center gap-2">
+              {categories.map((c) => (
                 <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`px-4 py-2 rounded-2xl transition-all duration-300 font-semibold text-sm ${
-                    selectedCategory === category
-                      ? "bg-gradient-to-r from-orange-600 to-orange-700 text-white shadow-lg"
-                      : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                  key={c}
+                  onClick={() => setSelectedCategory(c)}
+                  className={`rounded-2xl border px-4 py-2 text-sm font-semibold transition-all ${
+                    selectedCategory === c
+                      ? "border-amber-500/50 bg-amber-500/15 text-amber-300 shadow"
+                      : "border-slate-700/60 bg-slate-900/60 text-slate-200 hover:border-amber-500/50"
                   }`}
+                  title={c}
                 >
-                  <span className="flex items-center gap-1">
-                    <span>{getCategoryIcon(category)}</span>
-                    {category}
-                  </span>
+                  <span className="mr-1">{categoryIcon(c)}</span>
+                  {c}
                 </button>
               ))}
             </div>
           </div>
-        </div>
-        {/* Loading State */}
+        </section>
+
+        {/* LOADING */}
         {loading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-orange-200 border-t-orange-600"></div>
-            <p className="mt-4 text-gray-600 text-lg font-medium">
-              Loading recipes...
-            </p>
+          <div className="py-14 text-center">
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-600 border-t-amber-500" />
+            <p className="mt-4 text-slate-300">Loading recipes...</p>
           </div>
         )}
-        {/* Recipes Grid */}
+
+        {/* LIST */}
         {!loading && (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRecipes.map((recipe) => (
-              <div
-                key={recipe.recipe_id}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl p-6 transition-all duration-300 transform hover:scale-105 cursor-pointer"
-                onClick={() => setSelectedRecipe(recipe)}
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-2xl flex items-center justify-center">
-                      <span className="text-xl text-white">
-                        {getCategoryIcon(recipe.category)}
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg text-gray-800">
-                        {recipe.title}
-                      </h3>
-                      <p className="text-sm text-gray-500">{recipe.category}</p>
-                    </div>
-                  </div>
+          <section className="mt-8">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {recipes.map((r) => (
+                <div
+                  key={r.recipe_id}
+                  onClick={() => setSelectedRecipe(r)}
+                  onMouseMove={handleGlowMove}
+                  onMouseLeave={handleGlowLeave}
+                  className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-amber-500/50 hover:shadow-xl"
+                >
+                  {/* glow mengikuti kursor */}
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${getDifficultyColor(
-                      recipe.difficulty
-                    )}`}
-                  >
-                    {recipe.difficulty}
-                  </span>
-                </div>
-
-                <p className="text-gray-600 mb-4 line-clamp-2">
-                  {recipe.description}
-                </p>
-
-                <div className="grid grid-cols-3 gap-4 text-center text-sm">
-                  <div>
-                    <div className="text-orange-600 font-semibold">
-                      {recipe.prep_time}m
+                    aria-hidden
+                    className="pointer-events-none absolute -inset-px -z-10 opacity-0 blur transition-opacity duration-300 group-hover:opacity-100 group-hover:blur-md"
+                    style={{
+                      background:
+                        "radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(245,158,11,.12), transparent 40%)",
+                    }}
+                  />
+                  <div className="mb-4 flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 transition-transform duration-300 group-hover:scale-110">
+                        <span className="text-xl text-white">{categoryIcon(r.category)}</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-100">{r.title}</h3>
+                        <p className="text-sm text-slate-400">{r.category}</p>
+                      </div>
                     </div>
-                    <div className="text-gray-500">Prep Time</div>
-                  </div>
-                  <div>
-                    <div className="text-orange-600 font-semibold">
-                      {recipe.servings}
-                    </div>
-                    <div className="text-gray-500">Servings</div>
-                  </div>
-                  <div>
-                    <div className="text-orange-600 font-semibold">
-                      {recipe.ingredients.length}
-                    </div>
-                    <div className="text-gray-500">Ingredients</div>
-                  </div>
-                </div>
-
-                <div className="mt-4 text-center">
-                  <span className="text-sm text-gray-500">
-                    Click to view full recipe
-                  </span>
-                </div>
-              </div>
-            ))}
-
-            {filteredRecipes.length === 0 && (
-              <div className="col-span-full text-center py-16 bg-white rounded-3xl shadow-lg">
-                <div className="text-8xl mb-6">👨‍🍳</div>
-                <h3 className="text-2xl font-bold text-gray-600 mb-3">
-                  No recipes found
-                </h3>
-                <p className="text-gray-500 text-lg">
-                  Try adjusting your search terms or selected category
-                </p>
-              </div>
-            )}
-          </div>
-        )}{" "}
-        {/* Recipe Detail Modal */}
-        {selectedRecipe && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl transform transition-all duration-300 scale-100 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-2xl flex items-center justify-center">
-                    <span className="text-xl text-white">
-                      {getCategoryIcon(selectedRecipe.category)}
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${diffPill(r.difficulty)}`}>
+                      {r.difficulty}
                     </span>
                   </div>
+
+                  <p className="mb-4 line-clamp-2 text-slate-300">{r.description}</p>
+
+                  <div className="grid grid-cols-3 gap-4 text-center text-sm">
+                    <div>
+                      <div className="font-semibold text-amber-300">{r.prep_time}m</div>
+                      <div className="text-slate-400">Prep Time</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-amber-300">{r.servings}</div>
+                      <div className="text-slate-400">Servings</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-amber-300">{r.ingredients.length}</div>
+                      <div className="text-slate-400">Ingredients</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 text-center">
+                    <span className="text-sm text-slate-400">Click to view full recipe</span>
+                  </div>
+                </div>
+              ))}
+
+              {recipes.length === 0 && (
+                <div className="col-span-full rounded-3xl border border-slate-700/60 bg-slate-900/70 p-16 text-center shadow-xl">
+                  <div className="mb-6 text-8xl">👨‍🍳</div>
+                  <h3 className="mb-3 text-2xl font-bold text-slate-100">No recipes found</h3>
+                  <p className="text-slate-400">Try adjusting your search terms or selected category</p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* MODAL DETAIL */}
+        {selectedRecipe && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-700/60 bg-slate-900/90 p-8 shadow-2xl">
+              <div className="mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500">
+                    <span className="text-xl text-white">{categoryIcon(selectedRecipe.category)}</span>
+                  </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-800">
-                      {selectedRecipe.title}
-                    </h2>
-                    <p className="text-gray-600">{selectedRecipe.category}</p>
+                    <h2 className="text-2xl font-bold text-slate-100">{selectedRecipe.title}</h2>
+                    <p className="text-slate-300">{selectedRecipe.category}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedRecipe(null)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                  className="p-1 text-slate-400 transition-colors hover:text-slate-200"
                 >
-                  <span className="text-2xl">✕</span>
+                  ✕
                 </button>
               </div>
 
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                {selectedRecipe.description}
-              </p>
+              <p className="mb-6 leading-relaxed text-slate-300">{selectedRecipe.description}</p>
 
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="text-center p-4 bg-orange-50 rounded-2xl">
-                  <div className="text-2xl mb-2">⏱️</div>
-                  <div className="font-semibold text-gray-800">
-                    {selectedRecipe.prep_time} min
-                  </div>
-                  <div className="text-sm text-gray-500">Prep Time</div>
+              <div className="mb-6 grid grid-cols-3 gap-4">
+                <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-4 text-center">
+                  <div className="mb-2 text-2xl">⏱️</div>
+                  <div className="font-semibold text-slate-100">{selectedRecipe.prep_time} min</div>
+                  <div className="text-sm text-slate-400">Prep Time</div>
                 </div>
-                <div className="text-center p-4 bg-orange-50 rounded-2xl">
-                  <div className="text-2xl mb-2">👥</div>
-                  <div className="font-semibold text-gray-800">
-                    {selectedRecipe.servings}
-                  </div>
-                  <div className="text-sm text-gray-500">Servings</div>
+                <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-4 text-center">
+                  <div className="mb-2 text-2xl">👥</div>
+                  <div className="font-semibold text-slate-100">{selectedRecipe.servings}</div>
+                  <div className="text-sm text-slate-400">Servings</div>
                 </div>
-                <div className="text-center p-4 bg-orange-50 rounded-2xl">
-                  <div className="text-2xl mb-2">📊</div>
-                  <div
-                    className={`inline-block px-2 py-1 rounded-lg text-xs font-semibold ${getDifficultyColor(
-                      selectedRecipe.difficulty
-                    )}`}
-                  >
+                <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-4 text-center">
+                  <div className="mb-2 text-2xl">📊</div>
+                  <div className={`inline-block rounded-lg px-2 py-1 text-xs font-semibold ${diffPill(selectedRecipe.difficulty)}`}>
                     {selectedRecipe.difficulty}
                   </div>
-                  <div className="text-sm text-gray-500 mt-1">Difficulty</div>
+                  <div className="mt-1 text-sm text-slate-400">Difficulty</div>
                 </div>
               </div>
 
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <span>🛒</span>
-                    Ingredients
-                  </h3>
+                  <h3 className="mb-4 flex items-center gap-2 text-xl font-bold text-slate-100">🛒 Ingredients</h3>
                   <ul className="space-y-2">
-                    {selectedRecipe.ingredients.map((ingredient, index) => (
-                      <li
-                        key={index}
-                        className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg"
-                      >
-                        <span className="text-orange-600">•</span>
-                        <span className="text-gray-700">{ingredient}</span>
+                    {selectedRecipe.ingredients.map((ing, i) => (
+                      <li key={i} className="flex items-center gap-3 rounded-lg bg-slate-800/60 p-2">
+                        <span className="text-amber-300">•</span>
+                        <span className="text-slate-200">{ing}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
                 <div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <span>👨‍🍳</span>
-                    Instructions
-                  </h3>
+                  <h3 className="mb-4 flex items-center gap-2 text-xl font-bold text-slate-100">👨‍🍳 Instructions</h3>
                   <ol className="space-y-3">
-                    {selectedRecipe.instructions.map((instruction, index) => (
-                      <li
-                        key={index}
-                        className="flex gap-4 p-3 bg-gray-50 rounded-lg"
-                      >
-                        <span className="flex-shrink-0 w-6 h-6 bg-orange-600 text-white text-sm font-bold rounded-full flex items-center justify-center">
-                          {index + 1}
+                    {selectedRecipe.instructions.map((step, i) => (
+                      <li key={i} className="flex gap-4 rounded-lg bg-slate-800/60 p-3">
+                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold text-white">
+                          {i + 1}
                         </span>
-                        <span className="text-gray-700 leading-relaxed">
-                          {instruction}
-                        </span>
+                        <span className="leading-relaxed text-slate-200">{step}</span>
                       </li>
                     ))}
                   </ol>
                 </div>
               </div>
 
-              <div className="flex justify-center pt-6">
+              <div className="pt-6 text-center">
                 <button
                   onClick={() => setSelectedRecipe(null)}
-                  className="bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700 text-white font-semibold px-8 py-3 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                  className="rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:from-amber-700 hover:to-orange-700 hover:shadow-amber-600/20"
                 >
                   Close Recipe
                 </button>
@@ -370,7 +344,7 @@ const RecipesPage: React.FC<RecipesPageProps> = () => {
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 };

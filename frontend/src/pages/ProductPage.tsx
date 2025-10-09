@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { type Product } from "../types/product";
 import FoodClassifier from "../components/FoodClassifier";
+import AIChatbot from "../components/AIChatbot";
 
 interface ProductPageProps {
   user_id: number;
@@ -13,7 +14,9 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
   const [filter, setFilter] = useState<"all" | "expiring" | "fresh">("all");
   const [showAIClassifier, setShowAIClassifier] = useState(false);
 
-  // Form state
+  const [showRecipeChat, setShowRecipeChat] = useState(false);
+  const [selectedProductForRecipe, setSelectedProductForRecipe] = useState<Product | null>(null);
+
   const [formData, setFormData] = useState({
     product_name: "",
     type_product: "",
@@ -21,19 +24,29 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
     count: 1,
   });
 
-  // Load products
+  // ===== Glow helpers (no global CSS needed)
+  const handleGlowMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    el.style.setProperty("--x", `${x}px`);
+    el.style.setProperty("--y", `${y}px`);
+  };
+  const handleGlowLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.currentTarget.style.removeProperty("--x");
+    e.currentTarget.style.removeProperty("--y");
+  };
+  // =====
+
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `http://localhost:8000/products/user/${user_id}`
-      );
-      const data = await response.json();
-      if (data.status === "success") {
-        setProducts(data.products);
-      }
-    } catch (error) {
-      console.error("Error loading products:", error);
+      const res = await fetch(`http://localhost:8000/products/user/${user_id}`);
+      const data = await res.json();
+      if (data.status === "success") setProducts(data.products);
+    } catch (e) {
+      console.error("Error loading products:", e);
     } finally {
       setLoading(false);
     }
@@ -47,35 +60,22 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const response = await fetch("http://localhost:8000/products/", {
+      const res = await fetch("http://localhost:8000/products/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formData,
-          user_id,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, user_id }),
       });
-
-      const data = await response.json();
+      const data = await res.json();
       if (data.status === "success") {
-        alert("Product created successfully!");
         setShowCreateForm(false);
-        setFormData({
-          product_name: "",
-          type_product: "",
-          expiry_date: "",
-          count: 1,
-        });
+        setFormData({ product_name: "", type_product: "", expiry_date: "", count: 1 });
         loadProducts();
       } else {
-        alert("Error creating product: " + data.message);
+        alert("Error creating product: " + (data.message || data.detail || "unknown"));
       }
-    } catch (error) {
-      console.error("Error creating product:", error);
+    } catch (e) {
+      console.error("Error creating product:", e);
       alert("Error creating product");
     } finally {
       setLoading(false);
@@ -84,71 +84,45 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
 
   // Delete product
   const deleteProduct = async (productId: number) => {
-    if (!confirm("Are you sure you want to delete this product?")) return;
-
+    if (!confirm("Delete this product?")) return;
     try {
-      const response = await fetch(
-        `http://localhost:8000/products/${productId}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      const data = await response.json();
-      if (data.status === "success") {
-        alert("Product deleted successfully!");
-        loadProducts();
-      }
-    } catch (error) {
-      console.error("Error deleting product:", error);
+      const res = await fetch(`http://localhost:8000/products/${productId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.status === "success") loadProducts();
+    } catch (e) {
+      console.error("Error deleting product:", e);
     }
   };
 
-  // Get days until expiry
+  // Helpers
   const getDaysUntilExpiry = (expiryDate: string) => {
     const expiry = new Date(expiryDate);
     const today = new Date();
     const diffTime = expiry.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  // Get status based on expiry
+  // Dark-theme badge colors
   const getProductStatus = (expiryDate: string) => {
     const daysLeft = getDaysUntilExpiry(expiryDate);
     if (daysLeft < 0)
-      return {
-        status: "Expired",
-        color: "bg-red-100 text-red-800",
-        icon: "❌",
-      };
+      return { status: "Expired", color: "bg-red-500/15 text-red-300", icon: "❌" };
     if (daysLeft <= 3)
-      return {
-        status: "Expiring Soon",
-        color: "bg-orange-100 text-orange-800",
-        icon: "⚠️",
-      };
+      return { status: "Expiring Soon", color: "bg-orange-500/15 text-orange-300", icon: "⚠️" };
     if (daysLeft <= 7)
-      return {
-        status: "Expiring",
-        color: "bg-yellow-100 text-yellow-800",
-        icon: "⏰",
-      };
-    return {
-      status: "Fresh",
-      color: "bg-green-100 text-green-800",
-      icon: "✅",
-    };
+      return { status: "Expiring", color: "bg-yellow-500/15 text-yellow-300", icon: "⏰" };
+    return { status: "Fresh", color: "bg-emerald-500/15 text-emerald-300", icon: "✅" };
   };
 
-  // Filter products
-  const filteredProducts = products.filter((product) => {
-    const daysLeft = getDaysUntilExpiry(product.expiry_date);
-    if (filter === "expiring") {
-      return daysLeft <= 7 && daysLeft >= 0;
-    } else if (filter === "fresh") {
-      return daysLeft > 7;
-    }
+  const handleAskForRecipe = (product: Product) => {
+    setSelectedProductForRecipe(product);
+    setShowRecipeChat(true);
+  };
+
+  const filteredProducts = products.filter((p) => {
+    const daysLeft = getDaysUntilExpiry(p.expiry_date);
+    if (filter === "expiring") return daysLeft <= 7 && daysLeft >= 0;
+    if (filter === "fresh") return daysLeft > 7;
     return true;
   });
 
@@ -163,261 +137,248 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
     "Other",
   ];
 
-  // Dynamic mapping AI food types to product categories
   const mapFoodTypeToCategory = (foodType: string): string => {
-    const foodLower = foodType.toLowerCase();
-    
-    // Dynamic categorization based on keywords
-    if (foodLower.includes("pisang") || foodLower.includes("apel") || foodLower.includes("jeruk") || 
-        foodLower.includes("buah") || foodLower.includes("fruit") || foodLower.includes("banana") ||
-        foodLower.includes("apple") || foodLower.includes("orange")) {
-      return "Fruits";
-    }
-    
-    if (foodLower.includes("sayur") || foodLower.includes("brokoli") || foodLower.includes("wortel") ||
-        foodLower.includes("tomat") || foodLower.includes("vegetable") || foodLower.includes("broccoli") ||
-        foodLower.includes("carrot") || foodLower.includes("tomato")) {
-      return "Vegetables";
-    }
-    
-    if (foodLower.includes("nasi") || foodLower.includes("mie") || foodLower.includes("roti") ||
-        foodLower.includes("pasta") || foodLower.includes("rice") || foodLower.includes("bread") ||
-        foodLower.includes("noodle") || foodLower.includes("grain")) {
-      return "Grains";
-    }
-    
-    if (foodLower.includes("ayam") || foodLower.includes("ikan") || foodLower.includes("daging") ||
-        foodLower.includes("meat") || foodLower.includes("chicken") || foodLower.includes("fish") ||
-        foodLower.includes("beef") || foodLower.includes("seafood")) {
-      return "Meat";
-    }
-    
-    if (foodLower.includes("telur") || foodLower.includes("keju") || foodLower.includes("susu") ||
-        foodLower.includes("dairy") || foodLower.includes("cheese") || foodLower.includes("milk") ||
-        foodLower.includes("yogurt")) {
-      return "Dairy";
-    }
-    
-    if (foodLower.includes("snack") || foodLower.includes("kue") || foodLower.includes("biskuit") ||
-        foodLower.includes("cake") || foodLower.includes("cookie") || foodLower.includes("dessert")) {
-      return "Snacks";
-    }
-    
-    if (foodLower.includes("minuman") || foodLower.includes("kopi") || foodLower.includes("teh") ||
-        foodLower.includes("drink") || foodLower.includes("coffee") || foodLower.includes("tea") ||
-        foodLower.includes("juice")) {
-      return "Beverages";
-    }
-    
-    // Default category for anything else
+    const s = foodType.toLowerCase();
+    if (/(pisang|apel|jeruk|buah|fruit|banana|apple|orange)/.test(s)) return "Fruits";
+    if (/(sayur|brokoli|wortel|tomat|vegetable|broccoli|carrot|tomato)/.test(s)) return "Vegetables";
+    if (/(nasi|mie|roti|pasta|rice|bread|noodle|grain)/.test(s)) return "Grains";
+    if (/(ayam|ikan|daging|meat|chicken|fish|beef|seafood)/.test(s)) return "Meat";
+    if (/(telur|keju|susu|dairy|cheese|milk|yogurt)/.test(s)) return "Dairy";
+    if (/(snack|kue|biskuit|cake|cookie|dessert)/.test(s)) return "Snacks";
+    if (/(minuman|kopi|teh|drink|coffee|tea|juice)/.test(s)) return "Beverages";
     return "Other";
   };
 
   const handleFoodDetected = (foodType: string) => {
     const category = mapFoodTypeToCategory(foodType);
-    setFormData(prev => ({
-      ...prev,
-      product_name: foodType,
-      type_product: category,
-    }));
+    setFormData((prev) => ({ ...prev, product_name: foodType, type_product: category }));
     setShowAIClassifier(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-3xl shadow-lg p-8 mb-8">
+    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
+      {/* blob dekorasi */}
+      <svg
+        className="pointer-events-none absolute -right-24 -top-24 h-[36rem] w-[36rem] opacity-20 blur-3xl"
+        viewBox="0 0 200 200"
+        aria-hidden="true"
+      >
+        <path
+          d="M53.6,-58.2C67.2,-45.5,74.9,-24.7,73.8,-5.7C72.8,13.3,63.1,26.6,49.5,38.9C36,51.3,18,62.7,-0.3,63.1C-18.5,63.6,-36.9,53.1,-49.1,39.6C-61.3,26.1,-67.3,9.6,-65.7,-6.1C-64.1,-21.7,-54.8,-36.5,-42.1,-49.5C-29.4,-62.6,-14.7,-73.9,3.1,-77.9C20.9,-81.9,41.9,-78.6,53.6,-58.2Z"
+          transform="translate(100 100)"
+          className="fill-emerald-500/30"
+        />
+      </svg>
+
+      <main className="mx-auto max-w-7xl px-6 py-10">
+        {/* HEADER (frosted) */}
+        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/70 backdrop-blur-xl p-8 shadow-xl">
           <div className="text-center mb-6">
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+            <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">
               📦 Product Management
             </h1>
-            <p className="text-gray-600 text-lg">
-              Track and manage your food inventory
-            </p>
+            <p className="mt-2 text-slate-300">Track and manage your food inventory</p>
           </div>
 
           <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
             <button
               onClick={() => setShowCreateForm(true)}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-8 py-3 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+              className="bg-sky-600 hover:bg-sky-700 text-white font-semibold px-8 py-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-sky-600/20"
             >
-              <span className="flex items-center gap-2">
-                <span>➕</span>
-                Add New Product
-              </span>
+              ➕ Add New Product
             </button>
-
-            {/* Filter Buttons */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setFilter("all")}
-                className={`px-6 py-3 rounded-2xl transition-all duration-300 font-semibold ${
-                  filter === "all"
-                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-                }`}
-              >
-                All ({products.length})
-              </button>
-              <button
-                onClick={() => setFilter("fresh")}
-                className={`px-6 py-3 rounded-2xl transition-all duration-300 font-semibold ${
-                  filter === "fresh"
-                    ? "bg-gradient-to-r from-green-600 to-green-700 text-white shadow-lg"
-                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-                }`}
-              >
-                Fresh
-              </button>
-              <button
-                onClick={() => setFilter("expiring")}
-                className={`px-6 py-3 rounded-2xl transition-all duration-300 font-semibold ${
-                  filter === "expiring"
-                    ? "bg-gradient-to-r from-orange-600 to-orange-700 text-white shadow-lg"
-                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-                }`}
-              >
-                Expiring
-              </button>
-            </div>
           </div>
-        </div>
 
-        {/* Create Product Modal */}
+          {/* Expiry Warning Banner - dark style */}
+          {(() => {
+            const expiring = products.filter((p) => {
+              const d = getDaysUntilExpiry(p.expiry_date);
+              return d <= 7 && d >= 0;
+            });
+            if (!expiring.length) return null;
+            return (
+              <div className="mt-6 rounded-xl border border-orange-400/30 bg-orange-500/10 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div>
+                    <h3 className="text-orange-200 font-semibold">
+                      {expiring.length} item{expiring.length > 1 ? "s" : ""} expiring soon!
+                    </h3>
+                    <p className="text-sm text-orange-300">
+                      Get recipe suggestions to use these ingredients before they expire.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {expiring.slice(0, 3).map((p) => (
+                        <span
+                          key={p.product_id}
+                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-400/20 text-orange-200"
+                        >
+                          {p.product_name}
+                        </span>
+                      ))}
+                      {expiring.length > 3 && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-400/20 text-orange-200">
+                          +{expiring.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Filter buttons */}
+          <div className="mt-6 flex justify-center gap-2">
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-6 py-2.5 rounded-xl font-semibold transition-all ${
+                filter === "all"
+                  ? "bg-sky-600 text-white shadow"
+                  : "border border-slate-700 bg-slate-900/60 hover:bg-slate-900"
+              }`}
+            >
+              All ({products.length})
+            </button>
+            <button
+              onClick={() => setFilter("fresh")}
+              className={`px-6 py-2.5 rounded-xl font-semibold transition-all ${
+                filter === "fresh"
+                  ? "bg-emerald-600 text-white shadow"
+                  : "border border-slate-700 bg-slate-900/60 hover:bg-slate-900"
+              }`}
+            >
+              Fresh
+            </button>
+            <button
+              onClick={() => setFilter("expiring")}
+              className={`px-6 py-2.5 rounded-xl font-semibold transition-all ${
+                filter === "expiring"
+                  ? "bg-orange-600 text-white shadow"
+                  : "border border-slate-700 bg-slate-900/60 hover:bg-slate-900"
+              }`}
+            >
+              Expiring
+            </button>
+          </div>
+        </section>
+
+        {/* CREATE MODAL (dark frosted) */}
         {showCreateForm && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-lg transform transition-all duration-300 scale-100">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg rounded-2xl border border-slate-700/60 bg-slate-900/80 p-6 shadow-2xl">
+              <div className="mb-6 flex items-center justify-between">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">
                   Add New Product
                 </h2>
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                  className="rounded p-1 text-slate-400 hover:text-slate-200"
                 >
-                  <span className="text-2xl">✕</span>
+                  ✕
                 </button>
               </div>
 
-              <form onSubmit={handleCreateProduct} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Product Name <span className="text-red-500">*</span>
+              <form onSubmit={handleCreateProduct} className="space-y-5">
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-200">
+                    Product Name <span className="text-red-400">*</span>
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
+                      className="flex-1 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-slate-100 placeholder-slate-400 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
                       placeholder="e.g., Fresh Tomatoes"
-                      className="flex-1 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
                       value={formData.product_name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, product_name: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowAIClassifier(!showAIClassifier)}
-                      className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-2 rounded-2xl transition-all duration-300 flex items-center gap-2 whitespace-nowrap"
+                      className="whitespace-nowrap rounded-xl bg-violet-600 px-4 py-2 font-semibold text-white hover:bg-violet-700"
                     >
                       🤖 AI Detect
                     </button>
                   </div>
-                  
+
                   {showAIClassifier && (
-                    <div className="mt-4 p-4 border border-purple-200 rounded-2xl bg-gradient-to-br from-purple-50 to-blue-50">
-                      <div className="mb-3">
-                        <h4 className="text-sm font-semibold text-purple-700 mb-1">📸 AI Food Detection</h4>
-                        <p className="text-xs text-gray-600">Upload a photo to automatically detect product name and category</p>
+                    <div className="mt-4 rounded-xl border border-violet-500/30 bg-violet-500/10 p-4">
+                      <div className="mb-2">
+                        <h4 className="text-sm font-semibold text-violet-200">📸 AI Food Detection</h4>
+                        <p className="text-xs text-slate-300">
+                          Upload a photo to auto-detect product name & category
+                        </p>
                       </div>
-                      <FoodClassifier 
+                      <FoodClassifier
                         onFoodDetected={handleFoodDetected}
-                        className="border border-purple-200 rounded-xl"
+                        className="rounded-xl border border-violet-500/30"
                       />
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Category <span className="text-red-500">*</span>
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-200">
+                    Category <span className="text-red-400">*</span>
                   </label>
                   <select
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-slate-100 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
                     value={formData.type_product}
-                    onChange={(e) =>
-                      setFormData({ ...formData, type_product: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, type_product: e.target.value })}
                     required
                   >
                     <option value="">Select a category</option>
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Quantity <span className="text-red-500">*</span>
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-200">
+                    Quantity <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="number"
-                    min="1"
-                    placeholder="1"
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
+                    min={1}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-slate-100 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
                     value={formData.count}
                     onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        count: parseInt(e.target.value) || 1,
-                      })
+                      setFormData({ ...formData, count: parseInt(e.target.value) || 1 })
                     }
                     required
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Expiry Date <span className="text-red-500">*</span>
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-200">
+                    Expiry Date <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="date"
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 hover:bg-white"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-slate-100 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
                     value={formData.expiry_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, expiry_date: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
                     required
                   />
                 </div>
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:transform-none disabled:hover:scale-100"
+                    className="flex-1 rounded-xl bg-sky-600 py-3 font-semibold text-white transition-all hover:bg-sky-700 disabled:opacity-50"
                   >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="animate-spin">⏳</span>
-                        Creating...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <span>📦</span>
-                        Add Product
-                      </span>
-                    )}
+                    {loading ? "Creating..." : "Add Product"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowCreateForm(false)}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-2xl transition-all duration-300 border border-gray-200"
+                    className="flex-1 rounded-xl border border-slate-700 bg-slate-900/60 py-3 font-semibold text-slate-200 hover:bg-slate-900"
                   >
                     Cancel
                   </button>
@@ -427,88 +388,96 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
           </div>
         )}
 
-        {/* Loading State */}
+        {/* LOADING */}
         {loading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"></div>
-            <p className="mt-4 text-gray-600 text-lg font-medium">
-              Loading products...
-            </p>
+          <div className="py-12 text-center">
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-600 border-t-sky-500" />
+            <p className="mt-4 text-slate-300">Loading products...</p>
           </div>
         )}
 
-        {/* Products Grid */}
+        {/* GRID */}
         {!loading && (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProducts.map((product) => {
-              const daysUntilExpiry = getDaysUntilExpiry(product.expiry_date);
-              const statusInfo = getProductStatus(product.expiry_date);
+          <section className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredProducts.map((p) => {
+              const days = getDaysUntilExpiry(p.expiry_date);
+              const status = getProductStatus(p.expiry_date);
               return (
                 <div
-                  key={product.product_id}
-                  className="bg-white rounded-2xl shadow-lg hover:shadow-xl p-6 transition-all duration-300 transform hover:scale-105"
+                  key={p.product_id}
+                  onMouseMove={handleGlowMove}
+                  onMouseLeave={handleGlowLeave}
+                  className="group relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-lg backdrop-blur-sm transition-transform duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/10"
                 >
-                  <div className="flex justify-between items-start mb-4">
+                  {/* cursor-follow glow */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -inset-px -z-10 opacity-0 blur group-hover:opacity-100 group-hover:blur-md"
+                    style={{
+                      background:
+                        "radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(16,185,129,.15), transparent 40%)",
+                    }}
+                  />
+
+                  <div className="mb-4 flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-sky-500 to-violet-500">
                         <span className="text-xl text-white">📦</span>
                       </div>
                       <div>
-                        <h3 className="font-bold text-lg text-gray-800">
-                          {product.product_name}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {product.type_product}
-                        </p>
+                        <h3 className="text-lg font-bold text-slate-100">{p.product_name}</h3>
+                        <p className="text-sm text-slate-400">{p.type_product}</p>
                       </div>
                     </div>
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 ${statusInfo.color}`}
+                      className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${status.color}`}
                     >
-                      <span>{statusInfo.icon}</span>
-                      {statusInfo.status}
+                      <span>{status.icon}</span>
+                      {status.status}
                     </span>
                   </div>
 
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">Quantity:</span>
-                      <span className="font-medium">{product.count}</span>
+                  <div className="mb-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Quantity:</span>
+                      <span className="font-medium text-slate-100">{p.count}</span>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">Expiry Date:</span>
-                      <span className="font-medium">
-                        {new Date(product.expiry_date).toLocaleDateString()}
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Expiry Date:</span>
+                      <span className="font-medium text-slate-100">
+                        {new Date(p.expiry_date).toLocaleDateString()}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">Days Left:</span>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Days Left:</span>
                       <span
                         className={`font-medium ${
-                          daysUntilExpiry <= 3
-                            ? "text-red-600"
-                            : daysUntilExpiry <= 7
-                            ? "text-orange-600"
-                            : "text-green-600"
+                          days <= 3 ? "text-red-300" : days <= 7 ? "text-orange-300" : "text-emerald-300"
                         }`}
                       >
-                        {daysUntilExpiry > 0
-                          ? `${daysUntilExpiry} days`
-                          : "Expired"}
+                        {days > 0 ? `${days} days` : "Expired"}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">Added:</span>
-                      <span className="font-medium">
-                        {new Date(product.created_at).toLocaleDateString()}
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Added:</span>
+                      <span className="font-medium text-slate-100">
+                        {new Date(p.created_at).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
 
                   <div className="flex gap-2">
+                    {days <= 7 && days > 0 && (
+                      <button
+                        onClick={() => handleAskForRecipe(p)}
+                        className="flex-1 rounded-xl bg-violet-500/20 px-4 py-2 text-sm font-semibold text-violet-200 hover:bg-violet-500/30"
+                      >
+                        🤖 Ask for Recipe
+                      </button>
+                    )}
                     <button
-                      onClick={() => deleteProduct(product.product_id)}
-                      className="flex-1 bg-red-100 hover:bg-red-200 text-red-600 font-semibold py-2 px-4 rounded-xl transition-all duration-300 text-sm"
+                      onClick={() => deleteProduct(p.product_id)}
+                      className="flex-1 rounded-xl bg-red-500/20 px-4 py-2 text-sm font-semibold text-red-200 hover:bg-red-500/30"
                     >
                       Delete
                     </button>
@@ -518,23 +487,36 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
             })}
 
             {filteredProducts.length === 0 && (
-              <div className="col-span-full text-center py-16 bg-white rounded-3xl shadow-lg">
-                <div className="text-8xl mb-6">📦</div>
-                <h3 className="text-2xl font-bold text-gray-600 mb-3">
-                  {filter === "all"
-                    ? "No products yet"
-                    : `No ${filter} products`}
+              <div className="col-span-full rounded-2xl border border-slate-700/60 bg-slate-900/60 p-12 text-center text-slate-300">
+                <div className="mb-4 text-7xl">📦</div>
+                <h3 className="mb-2 text-2xl font-bold text-slate-100">
+                  {filter === "all" ? "No products yet" : `No ${filter} products`}
                 </h3>
-                <p className="text-gray-500 text-lg">
+                <p className="text-slate-400">
                   {filter === "all"
                     ? "Add your first product to get started!"
                     : `No products found in the ${filter} category.`}
                 </p>
               </div>
             )}
-          </div>
+          </section>
         )}
-      </div>
+      </main>
+
+      {/* AI Recipe Chatbot Modal */}
+      {selectedProductForRecipe && (
+        <div className="text-slate-800">
+          <AIChatbot
+            isOpen={showRecipeChat}
+            onClose={() => {
+              setShowRecipeChat(false);
+              setSelectedProductForRecipe(null);
+            }}
+            initialIngredients={[selectedProductForRecipe.product_name]}
+            context="expired"
+          />
+        </div>
+      )}
     </div>
   );
 };

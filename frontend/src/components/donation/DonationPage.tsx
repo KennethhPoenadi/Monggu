@@ -12,6 +12,12 @@ interface DonationPageProps {
   user_id: number;
 }
 
+const STATUS_CHIP: Record<string, string> = {
+  Diajukan: "bg-amber-400/15 text-amber-300 border border-amber-400/30",
+  "Siap Dijemput": "bg-sky-400/15 text-sky-300 border border-sky-400/30",
+  Diterima: "bg-emerald-400/15 text-emerald-300 border border-emerald-400/30",
+};
+
 const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
   const navigate = useNavigate();
   const [donations, setDonations] = useState<Donation[]>([]);
@@ -22,81 +28,76 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  
-  // QR Code states
+
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedDonationForQR, setSelectedDonationForQR] = useState<Donation | null>(null);
-  const [qrCodeData, setQrCodeData] = useState<string>('');
+  const [qrCodeData, setQrCodeData] = useState<string>("");
 
-  // Load user's donations
+  // ===== cursor-follow glow helpers (tanpa CSS global)
+  const handleGlowMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    el.style.setProperty("--x", `${x}px`);
+    el.style.setProperty("--y", `${y}px`);
+  };
+  const handleGlowLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.currentTarget.style.removeProperty("--x");
+    e.currentTarget.style.removeProperty("--y");
+  };
+  // =====
+
+  // --- data loaders ---
   const loadMyDonations = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:8000/donations/user/${user_id}`);
-      const data = await response.json();
-      if (data.status === "success") {
-        setDonations(data.donations);
-      }
-    } catch (error) {
-      console.error("Error loading donations:", error);
+      const res = await fetch(`http://localhost:8000/donations/user/${user_id}`);
+      const data = await res.json();
+      if (data.status === "success") setDonations(data.donations);
+    } catch (e) {
+      console.error("Error loading donations:", e);
     }
   }, [user_id]);
 
-  // Load user products
   const loadUserProducts = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:8000/products/user/${user_id}`);
-      const data = await response.json();
-      if (data.status === "success") {
-        setUserProducts(data.products);
-      }
-    } catch (error) {
-      console.error("Error loading user products:", error);
+      const res = await fetch(`http://localhost:8000/products/user/${user_id}`);
+      const data = await res.json();
+      if (data.status === "success") setUserProducts(data.products);
+    } catch (e) {
+      console.error("Error loading products:", e);
     }
   }, [user_id]);
 
-  // Load expiring products
   const loadExpiringProducts = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:8000/products/user/${user_id}/expiring?days=3`);
-      const data = await response.json();
-      if (data.status === "success") {
-        setExpiringProducts(data.products);
-      }
-    } catch (error) {
-      console.error("Error loading expiring products:", error);
+      const res = await fetch(`http://localhost:8000/products/user/${user_id}/expiring?days=3`);
+      const data = await res.json();
+      if (data.status === "success") setExpiringProducts(data.products);
+    } catch (e) {
+      console.error("Error loading expiring products:", e);
     }
   }, [user_id]);
 
-  // Load nearby donations
   const loadNearbyDonations = useCallback(async () => {
     if (!userLocation) return;
-
     try {
-      const response = await fetch(
+      const res = await fetch(
         `http://localhost:8000/donations/nearby/?latitude=${userLocation.lat}&longitude=${userLocation.lng}&radius_km=10&user_id=${user_id}`
       );
-      const data = await response.json();
-      if (data.status === "success") {
-        setNearbyDonations(data.donations);
-      }
-    } catch (error) {
-      console.error("Error loading nearby donations:", error);
+      const data = await res.json();
+      if (data.status === "success") setNearbyDonations(data.donations);
+    } catch (e) {
+      console.error("Error loading nearby donations:", e);
     }
   }, [userLocation, user_id]);
 
-  // Get user location
+  // --- location + effects ---
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-        }
+        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => console.error("Error getting location:", err)
       );
     }
   }, []);
@@ -108,134 +109,95 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
   }, [loadMyDonations, loadUserProducts, loadExpiringProducts]);
 
   useEffect(() => {
-    if (userLocation) {
-      loadNearbyDonations();
-    }
+    if (userLocation) loadNearbyDonations();
   }, [userLocation, loadNearbyDonations]);
 
-  // Create donation from selected products
+  // --- actions ---
   const handleCreateDonation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedProducts.length === 0) {
-      alert("Please select at least one product to donate.");
-      return;
-    }
-    if (!userLocation) {
-      alert("Please allow location access to create a donation.");
-      return;
-    }
+    if (selectedProducts.length === 0) return alert("Select at least one product.");
+    if (!userLocation) return alert("Please allow location access.");
 
     setLoading(true);
-
     try {
-      const donationData: DonationCreate = {
+      const payload: DonationCreate = {
         donor_user_id: user_id,
-        type_of_food: selectedProducts.map(p => p.product_name),
+        type_of_food: selectedProducts.map((p) => p.product_name),
         latitude: userLocation.lat,
         longitude: userLocation.lng,
         status: DonationStatus.Diajukan,
       };
 
-      const response = await fetch("http://localhost:8000/donations/", {
+      const res = await fetch("http://localhost:8000/donations/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(donationData),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
-
-      const data = await response.json();
+      const data = await res.json();
       if (data.status === "success") {
-        alert("Donation created successfully!");
         setShowCreateForm(false);
         setSelectedProducts([]);
         loadMyDonations();
       } else {
         alert(`Error: ${data.detail}`);
       }
-    } catch (error) {
-      console.error("Error creating donation:", error);
+    } catch (e) {
+      console.error("Error creating donation:", e);
       alert("Failed to create donation");
     } finally {
       setLoading(false);
     }
   };
 
-  // Toggle product selection
   const toggleProductSelection = (product: Product) => {
-    setSelectedProducts(prev => {
-      const isSelected = prev.some(p => p.product_id === product.product_id);
-      if (isSelected) {
-        return prev.filter(p => p.product_id !== product.product_id);
-      } else {
-        return [...prev, product];
-      }
-    });
+    setSelectedProducts((prev) =>
+      prev.some((p) => p.product_id === product.product_id)
+        ? prev.filter((p) => p.product_id !== product.product_id)
+        : [...prev, product]
+    );
   };
 
-  // Add expiring product to selection
   const addExpiringProduct = (product: Product) => {
-    setSelectedProducts(prev => {
-      const isAlreadySelected = prev.some(p => p.product_id === product.product_id);
-      if (!isAlreadySelected) {
-        return [...prev, product];
-      }
-      return prev;
-    });
+    setSelectedProducts((prev) =>
+      prev.some((p) => p.product_id === product.product_id) ? prev : [...prev, product]
+    );
   };
 
-  // Use current location
   const useMyLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-          alert("Could not get your location. Please try again.");
-        }
-      );
-    }
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => {
+        console.error("Error getting location:", err);
+        alert("Could not get your location. Please try again.");
+      }
+    );
   };
 
-  // Cancel donation and restore products
   const handleCancelDonation = async (donationId: number) => {
-    if (!confirm("Are you sure you want to cancel this donation? The products will be restored to your inventory.")) {
-      return;
-    }
-
+    if (!confirm("Cancel this donation? Products will be restored.")) return;
     try {
-      const response = await fetch(`http://localhost:8000/donations/${donationId}/cancel`, {
+      const res = await fetch(`http://localhost:8000/donations/${donationId}/cancel`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       });
-
-      const data = await response.json();
+      const data = await res.json();
       if (data.status === "success") {
-        alert("Donation cancelled successfully! Products restored to inventory.");
-        loadMyDonations(); // Refresh donations list
-        loadUserProducts(); // Refresh products list
+        loadMyDonations();
+        loadUserProducts();
       } else {
         alert(`Error: ${data.detail}`);
       }
-    } catch (error) {
-      console.error("Error cancelling donation:", error);
+    } catch (e) {
+      console.error("Error cancelling donation:", e);
       alert("Failed to cancel donation");
     }
   };
 
-  // Handle showing QR code for pickup
   const handleShowQRCode = async (donation: Donation) => {
     try {
-      const response = await fetch(`http://localhost:8000/donations/${donation.donation_id}/qrcode`);
-      const data = await response.json();
-      
+      const res = await fetch(`http://localhost:8000/donations/${donation.donation_id}/qrcode`);
+      const data = await res.json();
       if (data.status === "success") {
         setQrCodeData(data.qr_code_base64);
         setSelectedDonationForQR(donation);
@@ -243,139 +205,315 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
       } else {
         alert(`Error generating QR code: ${data.detail}`);
       }
-    } catch (error) {
-      console.error("Error generating QR code:", error);
+    } catch (e) {
+      console.error("Error generating QR code:", e);
       alert("Failed to generate QR code");
     }
   };
 
-  // Claim donation and redirect to profile page
+  const openInGoogleMaps = (lat: number, lng: number) =>
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`,
+      "_blank"
+    );
+
   const handleClaimDonation = async (donationId: number) => {
     try {
-      const response = await fetch(`http://localhost:8000/donations/${donationId}/accept`, {
+      const res = await fetch(`http://localhost:8000/donations/${donationId}/accept`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          donation_id: donationId,
-          receiver_user_id: user_id
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ donation_id: donationId, receiver_user_id: user_id }),
       });
-
-      const data = await response.json();
+      const data = await res.json();
       if (data.status === "success") {
-        alert("Donation claimed successfully! You can now view the QR code in your profile.");
-        // Store claimed donation ID in localStorage for profile page
-        localStorage.setItem('claimedDonationId', donationId.toString());
-        // Navigate to profile page
-        navigate('/profile');
+        localStorage.setItem("claimedDonationId", donationId.toString());
+        navigate("/profile");
       } else {
         alert(`Error: ${data.detail}`);
       }
-    } catch (error) {
-      console.error("Error claiming donation:", error);
-      alert("Failed to claim donation. Please try again.");
+    } catch (e) {
+      console.error("Error claiming donation:", e);
+      alert("Failed to claim donation.");
     }
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">Food Donations</h1>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
-        >
-          Create Donation
-        </button>
-      </div>
+    <div className="relative min-h-[calc(100vh-120px)] overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
+      {/* dekorasi blob */}
+      <svg
+        className="pointer-events-none absolute -right-20 -top-20 w-[36rem] h-[36rem] opacity-20 blur-3xl"
+        viewBox="0 0 200 200"
+        aria-hidden
+      >
+        <path
+          d="M53.6,-58.2C67.2,-45.5,74.9,-24.7,73.8,-5.7C72.8,13.3,63.1,26.6,49.5,38.9C36,51.3,18,62.7,-0.3,63.1C-18.5,63.6,-36.9,53.1,-49.1,39.6C-61.3,26.1,-67.3,9.6,-65.7,-6.1C-64.1,-21.7,-54.8,-36.5,-42.1,-49.5C-29.4,-62.6,-14.7,-73.9,3.1,-77.9C20.9,-81.9,41.9,-78.6,53.6,-58.2Z"
+          transform="translate(100 100)"
+          className="fill-emerald-500/30"
+        />
+      </svg>
 
-      {/* Expiring Products Alert */}
-      {expiringProducts.length > 0 && (
-        <div className="bg-orange-100 border-l-4 border-orange-500 p-4 rounded">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-5 h-5 text-orange-500">⚠️</div>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-orange-700">
-                <strong>Products Expiring Soon!</strong> You have {expiringProducts.length} products expiring in the next 3 days.
-                Consider donating them to help reduce food waste.
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {expiringProducts.map((product) => (
-                  <button
-                    key={product.product_id}
-                    onClick={() => addExpiringProduct(product)}
-                    className="bg-orange-200 hover:bg-orange-300 text-orange-800 px-3 py-1 rounded-full text-xs transition-colors"
-                  >
-                    + {product.product_name} (expires {new Date(product.expiry_date).toLocaleDateString()})
-                  </button>
-                ))}
-              </div>
-            </div>
+      <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+        {/* header card */}
+        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/70 backdrop-blur-xl p-6 md:p-8 shadow-xl flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Food Donations</h1>
+            <p className="text-slate-300 mt-1">Create, manage, and discover nearby donations.</p>
           </div>
-        </div>
-      )}
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 font-semibold shadow-lg hover:shadow-emerald-500/20"
+          >
+            Create Donation
+          </button>
+        </section>
 
-      {/* Create Donation Modal */}
+        {/* expiring products alert */}
+        {expiringProducts.length > 0 && (
+          <section className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5 text-amber-200">
+            <p className="font-semibold">
+              ⚠️ Products Expiring Soon — {expiringProducts.length} item(s)
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {expiringProducts.map((p) => (
+                <button
+                  key={p.product_id}
+                  onClick={() => addExpiringProduct(p)}
+                  className="rounded-full border border-amber-300/40 bg-amber-300/10 px-3 py-1 text-sm hover:bg-amber-300/20"
+                >
+                  + {p.product_name} (exp {new Date(p.expiry_date).toLocaleDateString()})
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* my donations */}
+        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/60 backdrop-blur p-6 md:p-8">
+          <h2 className="text-xl md:text-2xl font-bold mb-4">My Donations</h2>
+          {donations.length === 0 ? (
+            <p className="text-slate-400">No donations yet.</p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {donations.map((d) => (
+                <div
+                  key={d.donation_id}
+                  onMouseMove={handleGlowMove}
+                  onMouseLeave={handleGlowLeave}
+                  className="group relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/70 p-5 shadow-lg transition-all duration-300 transform-gpu hover:-translate-y-1 hover:scale-[1.02] hover:shadow-xl hover:shadow-emerald-500/10 hover:border-emerald-500/60"
+                >
+                  {/* glow mengikuti kursor */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -inset-px -z-10 opacity-0 blur group-hover:opacity-100 group-hover:blur-md"
+                    style={{
+                      background:
+                        "radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(16,185,129,.15), transparent 40%)",
+                    }}
+                  />
+                  <div className="mb-3 flex items-center justify-between">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        STATUS_CHIP[d.status] ||
+                        "bg-slate-700/50 text-slate-200 border border-slate-600"
+                      }`}
+                    >
+                      {d.status}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 text-sm">
+                    <p className="text-slate-300">
+                      <span className="text-slate-400">Foods:</span> {d.type_of_food.join(", ")}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-300">
+                        <span className="text-slate-400">Location:</span>{" "}
+                        {d.latitude.toFixed(4)}, {d.longitude.toFixed(4)}
+                      </span>
+                      <button
+                        onClick={() => openInGoogleMaps(d.latitude, d.longitude)}
+                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700"
+                        title="Navigate in Google Maps"
+                      >
+                        🗺️ Navigate
+                      </button>
+                    </div>
+                    <p className="text-slate-400">
+                      <strong className="text-slate-300">Created:</strong>{" "}
+                      {new Date(d.created_at).toLocaleString()}
+                    </p>
+                    <p className="text-slate-400">
+                      <strong className="text-slate-300">Expires:</strong>{" "}
+                      {new Date(d.expires_at).toLocaleString()}
+                    </p>
+                    {d.receiver_name && (
+                      <p className="text-slate-400">
+                        <strong className="text-slate-300">Receiver:</strong> {d.receiver_name}
+                      </p>
+                    )}
+                  </div>
+
+                  {d.status === "Diajukan" && (
+                    <button
+                      onClick={() => handleCancelDonation(d.donation_id)}
+                      className="mt-4 w-full rounded-lg bg-rose-600 py-2 text-sm font-semibold hover:bg-rose-700"
+                    >
+                      Cancel Donation
+                    </button>
+                  )}
+
+                  {d.status === "Siap Dijemput" && (
+                    <button
+                      onClick={() => handleShowQRCode(d)}
+                      className="mt-4 w-full rounded-lg bg-emerald-600 py-2 text-sm font-semibold hover:bg-emerald-700"
+                    >
+                      Show QR Code for Pickup
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* nearby donations */}
+        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/60 backdrop-blur p-6 md:p-8">
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Nearby Donations</h2>
+          {nearbyDonations.length === 0 ? (
+            <p className="text-slate-400">No nearby donations found.</p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {nearbyDonations.map((d) => (
+                <div
+                  key={d.donation_id}
+                  onMouseMove={handleGlowMove}
+                  onMouseLeave={handleGlowLeave}
+                  className="group relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/70 p-5 shadow-lg transition-all duration-300 transform-gpu hover:-translate-y-1 hover:scale-[1.02] hover:shadow-xl hover:shadow-emerald-500/10 hover:border-emerald-500/60"
+                >
+                  {/* glow mengikuti kursor */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -inset-px -z-10 opacity-0 blur group-hover:opacity-100 group-hover:blur-md"
+                    style={{
+                      background:
+                        "radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(16,185,129,.15), transparent 40%)",
+                    }}
+                  />
+                  <div className="mb-3 flex items-center justify-between">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        STATUS_CHIP[d.status] ||
+                        "bg-slate-700/50 text-slate-200 border border-slate-600"
+                      }`}
+                    >
+                      {d.status}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {d.distance_km.toFixed(1)} km away
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 text-sm">
+                    <p className="text-slate-300">
+                      <span className="text-slate-400">Foods:</span> {d.type_of_food.join(", ")}
+                    </p>
+                    <p className="text-slate-300">
+                      <span className="text-slate-400">Donor:</span> {d.donor_name || "Anonymous"}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-300">
+                        <span className="text-slate-400">Location:</span>{" "}
+                        {d.latitude.toFixed(4)}, {d.longitude.toFixed(4)}
+                      </span>
+                      <button
+                        onClick={() => openInGoogleMaps(d.latitude, d.longitude)}
+                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700"
+                      >
+                        🗺️ Navigate
+                      </button>
+                    </div>
+                    <p className="text-slate-400">
+                      <strong className="text-slate-300">Expires:</strong>{" "}
+                      {new Date(d.expires_at).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {d.status === "Diajukan" && (
+                    <button
+                      onClick={() => handleClaimDonation(d.donation_id)}
+                      className="mt-4 w-full rounded-lg bg-emerald-600 py-2 text-sm font-semibold hover:bg-emerald-700"
+                    >
+                      Claim Donation
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+
+      {/* create donation modal */}
       {showCreateForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ marginTop: '10vh', marginBottom: '10vh' }}>
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-xl font-semibold">Create New Donation</h2>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-700/60 bg-slate-900/90 text-slate-100 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-700 p-5">
+              <h2 className="text-lg font-semibold">Create New Donation</h2>
               <button
                 onClick={() => {
                   setShowCreateForm(false);
                   setSelectedProducts([]);
                 }}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                className="text-slate-400 hover:text-slate-200 text-2xl leading-none"
+                aria-label="Close"
               >
                 ×
               </button>
             </div>
 
-            <form onSubmit={handleCreateDonation} className="p-6 space-y-4">
-              {/* Product Selection */}
+            <form onSubmit={handleCreateDonation} className="p-5 space-y-5">
+              {/* products */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-slate-200">
                   Select Products to Donate *
                 </label>
-                <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
+                <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/60 p-3 space-y-2">
                   {userProducts.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No products found. Add some products first!</p>
+                    <p className="text-slate-400 text-sm">
+                      No products found. Add some products first!
+                    </p>
                   ) : (
-                    userProducts.map((product) => {
-                      const isSelected = selectedProducts.some(p => p.product_id === product.product_id);
-                      const isExpiring = new Date(product.expiry_date).getTime() - new Date().getTime() <= 3 * 24 * 60 * 60 * 1000;
-                      
+                    userProducts.map((p) => {
+                      const isSelected = selectedProducts.some((x) => x.product_id === p.product_id);
+                      const isExpiring =
+                        new Date(p.expiry_date).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000;
                       return (
                         <div
-                          key={product.product_id}
-                          className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                          key={p.product_id}
+                          onClick={() => toggleProductSelection(p)}
+                          className={`flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors ${
                             isSelected
-                              ? 'bg-blue-100 border-blue-300'
-                              : 'bg-gray-50 hover:bg-gray-100'
+                              ? "bg-emerald-500/10 border border-emerald-500/40"
+                              : "bg-slate-800/50 hover:bg-slate-800 border border-slate-700"
                           }`}
-                          onClick={() => toggleProductSelection(product)}
                         >
-                          <div className="flex items-center space-x-3">
+                          <div className="flex items-center gap-3">
                             <input
                               type="checkbox"
+                              readOnly
                               checked={isSelected}
-                              onChange={() => {}} // Handled by parent click
-                              className="w-4 h-4 text-blue-600"
+                              className="h-4 w-4 accent-emerald-600"
                             />
                             <div>
-                              <p className="font-medium">{product.product_name}</p>
-                              <p className="text-sm text-gray-500">
-                                Count: {product.count} | Expires: {new Date(product.expiry_date).toLocaleDateString()}
+                              <p className="font-medium text-slate-100">{p.product_name}</p>
+                              <p className="text-xs text-slate-400">
+                                Count: {p.count} · Expires:{" "}
+                                {new Date(p.expiry_date).toLocaleDateString()}
                               </p>
                             </div>
                           </div>
                           {isExpiring && (
-                            <span className="bg-orange-200 text-orange-800 px-2 py-1 rounded-full text-xs">
+                            <span className="rounded-full bg-amber-400/15 px-2 py-1 text-xs text-amber-200">
                               Expiring Soon
                             </span>
                           )}
@@ -385,53 +523,53 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                   )}
                 </div>
                 {selectedProducts.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-sm text-green-600">
-                      Selected: {selectedProducts.map(p => p.product_name).join(', ')}
-                    </p>
-                  </div>
+                  <p className="mt-2 text-sm text-emerald-300">
+                    Selected: {selectedProducts.map((p) => p.product_name).join(", ")}
+                  </p>
                 )}
               </div>
 
-              {/* Location Info */}
+              {/* location */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-slate-200">
                   Pickup Location
                 </label>
                 <div className="space-y-2">
                   <button
                     type="button"
                     onClick={useMyLocation}
-                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors text-sm"
+                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold hover:bg-emerald-700"
                   >
                     📍 Use My Current Location
                   </button>
                   {userLocation ? (
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-slate-300">
                       Location: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
                     </p>
                   ) : (
-                    <p className="text-sm text-red-600">Location not available. Please allow location access.</p>
+                    <p className="text-sm text-rose-300">
+                      Location not available. Please allow location access.
+                    </p>
                   )}
                 </div>
               </div>
 
-              {/* Submit Button */}
-              <div className="flex justify-end space-x-3 pt-4">
+              {/* actions */}
+              <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setShowCreateForm(false);
                     setSelectedProducts([]);
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-slate-200 hover:bg-slate-800"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading || selectedProducts.length === 0 || !userLocation}
-                  className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-600"
                 >
                   {loading ? "Creating..." : "Create Donation"}
                 </button>
@@ -441,163 +579,54 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
         </div>
       )}
 
-      {/* My Donations */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">My Donations</h2>
-        {donations.length === 0 ? (
-          <p className="text-gray-500">No donations yet.</p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {donations.map((donation) => (
-              <div key={donation.donation_id} className="bg-white p-4 rounded-lg shadow border">
-                <div className="mb-2">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      donation.status === "Diajukan"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : donation.status === "Siap Dijemput"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-green-100 text-green-800"
-                    }`}
-                  >
-                    {donation.status}
-                  </span>
-                </div>
-                
-                <div className="space-y-1 text-sm">
-                  <p><strong>Foods:</strong> {donation.type_of_food.join(", ")}</p>
-                  <p><strong>Location:</strong> {donation.latitude.toFixed(4)}, {donation.longitude.toFixed(4)}</p>
-                  <p><strong>Created:</strong> {new Date(donation.created_at).toLocaleString()}</p>
-                  <p><strong>Expires:</strong> {new Date(donation.expires_at).toLocaleString()}</p>
-                  {donation.receiver_name && (
-                    <p><strong>Receiver:</strong> {donation.receiver_name}</p>
-                  )}
-                </div>
-                
-                {/* Cancel button - only show for pending donations */}
-                {donation.status === "Diajukan" && (
-                  <div className="mt-3">
-                    <button 
-                      onClick={() => handleCancelDonation(donation.donation_id)}
-                      className="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded transition-colors text-sm"
-                    >
-                      Cancel Donation
-                    </button>
-                  </div>
-                )}
-                
-                {/* QR Code button - only show for ready donations */}
-                {donation.status === "Siap Dijemput" && (
-                  <div className="mt-3">
-                    <button 
-                      onClick={() => handleShowQRCode(donation)}
-                      className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded transition-colors text-sm"
-                    >
-                      Show QR Code for Pickup
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Nearby Donations */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Nearby Donations</h2>
-        {nearbyDonations.length === 0 ? (
-          <p className="text-gray-500">No nearby donations found.</p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {nearbyDonations.map((donation) => (
-              <div key={donation.donation_id} className="bg-white p-4 rounded-lg shadow border">
-                <div className="mb-2 flex justify-between items-center">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      donation.status === "Diajukan"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : donation.status === "Siap Dijemput"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-green-100 text-green-800"
-                    }`}
-                  >
-                    {donation.status}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {donation.distance_km.toFixed(1)} km away
-                  </span>
-                </div>
-                
-                <div className="space-y-1 text-sm">
-                  <p><strong>Foods:</strong> {donation.type_of_food.join(", ")}</p>
-                  <p><strong>Donor:</strong> {donation.donor_name || "Anonymous"}</p>
-                  <p><strong>Location:</strong> {donation.latitude.toFixed(4)}, {donation.longitude.toFixed(4)}</p>
-                  <p><strong>Expires:</strong> {new Date(donation.expires_at).toLocaleString()}</p>
-                </div>
-                
-                {donation.status === "Diajukan" && (
-                  <button 
-                    onClick={() => handleClaimDonation(donation.donation_id)}
-                    className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded transition-colors text-sm"
-                  >
-                    Claim Donation
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      
-      {/* QR Code Modal */}
+      {/* QR modal */}
       {showQRModal && selectedDonationForQR && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold mb-4">QR Code for Pickup</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Show this QR code to the receiver when they arrive for pickup
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700/60 bg-slate-900/90 text-slate-100 shadow-2xl">
+            <div className="p-5">
+              <h3 className="text-lg font-semibold text-center">QR Code for Pickup</h3>
+              <p className="mt-1 text-center text-sm text-slate-300">
+                Show this code to the receiver when they arrive.
               </p>
-              
-              {/* QR Code Display */}
-              <div className="mb-4 p-4 bg-gray-50 rounded">
+
+              <div className="mt-4 rounded-xl border-2 border-slate-600 bg-slate-900/60 p-4">
                 {qrCodeData ? (
-                  <img 
-                    src={`data:image/png;base64,${qrCodeData}`} 
+                  <img
+                    src={`data:image/png;base64,${qrCodeData}`}
                     alt="QR Code"
-                    className="mx-auto max-w-48 max-h-48"
+                    className="mx-auto h-auto max-h-48 w-auto"
                   />
                 ) : (
-                  <div className="text-gray-500">Loading QR code...</div>
+                  <div className="text-center text-slate-400">Loading QR code…</div>
                 )}
               </div>
-              
-              {/* Donation Info */}
-              <div className="text-left text-sm mb-4 p-3 bg-blue-50 rounded">
-                <p><strong>Donation:</strong> {selectedDonationForQR.type_of_food.join(", ")}</p>
-                <p><strong>Receiver:</strong> {selectedDonationForQR.receiver_name}</p>
-                <p><strong>Status:</strong> {selectedDonationForQR.status}</p>
+
+              <div className="mt-4 rounded-lg bg-slate-800/60 p-3 text-sm">
+                <p>
+                  <strong>Donation:</strong> {selectedDonationForQR.type_of_food.join(", ")}
+                </p>
+                <p>
+                  <strong>Receiver:</strong> {selectedDonationForQR.receiver_name}
+                </p>
+                <p>
+                  <strong>Status:</strong> {selectedDonationForQR.status}
+                </p>
               </div>
-              
-              {/* Instructions */}
-              <div className="text-left text-xs text-gray-600 mb-4">
-                <p><strong>Instructions:</strong></p>
-                <ol className="list-decimal list-inside mt-1">
-                  <li>Wait for the receiver to arrive</li>
-                  <li>Ask them to scan this QR code</li>
-                  <li>Once scanned, the pickup will be verified</li>
-                  <li>Both parties will receive points</li>
-                </ol>
-              </div>
-              
+
+              <ol className="mt-3 list-inside list-decimal text-xs text-slate-400">
+                <li>Wait for the receiver to arrive</li>
+                <li>Ask them to scan this QR code</li>
+                <li>Once scanned, the pickup will be verified</li>
+                <li>Both parties will receive points</li>
+              </ol>
+
               <button
                 onClick={() => {
                   setShowQRModal(false);
                   setSelectedDonationForQR(null);
-                  setQrCodeData('');
+                  setQrCodeData("");
                 }}
-                className="w-full bg-gray-500 hover:bg-gray-600 text-white py-2 rounded transition-colors"
+                className="mt-5 w-full rounded-lg bg-slate-700 py-2 font-semibold hover:bg-slate-600"
               >
                 Close
               </button>

@@ -1,6 +1,15 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Home, ArrowLeft, Bug, Search, MapPin, Gift, UtensilsCrossed } from "lucide-react";
+import {
+  Home,
+  ArrowLeft,
+  Bug,
+  Search,
+  MapPin,
+  Gift,
+  UtensilsCrossed,
+  Package, // ← icon box untuk Products
+} from "lucide-react";
 
 type Suggestion = {
   href: string;
@@ -14,10 +23,10 @@ export default function NotFoundPage() {
 
   const suggestions: Suggestion[] = useMemo(
     () => [
-      { href: "/donation-map",       label: "Lokasi Donasi",  icon: MapPin },
-      { href: "/dashboard",          label: "Dashboard",      icon: Home },
-      { href: "/recipe-suggestions", label: "Resep AI",       icon: UtensilsCrossed },
-      { href: "/donate",             label: "Donasi Makanan", icon: Gift },
+      { href: "/map",      label: "Lokasi Donasi",  icon: MapPin },
+      { href: "/product",  label: "Products",       icon: Package }, // ← diubah
+      { href: "/ai-food",  label: "Resep AI",       icon: UtensilsCrossed },
+      { href: "/donation", label: "Donasi Makanan", icon: Gift },
     ],
     []
   );
@@ -26,12 +35,11 @@ export default function NotFoundPage() {
     e.preventDefault();
     const s = q.trim();
     if (!s) return;
-    nav(`/search?q=${encodeURIComponent(s)}`);
+    nav(`/recipes?search=${encodeURIComponent(s)}`);
   }
 
   return (
     <div className="relative min-h-[calc(100vh-120px)] bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
-      {/* dekorasi blob */}
       <svg
         className="pointer-events-none absolute -right-20 -top-20 w-[36rem] h-[36rem] opacity-20 blur-3xl"
         viewBox="0 0 200 200"
@@ -46,7 +54,6 @@ export default function NotFoundPage() {
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         <section className="rounded-2xl border border-slate-700/60 bg-slate-900/70 backdrop-blur-xl p-6 md:p-8 shadow-xl">
-          {/* brand mini */}
           <div className="mb-4 flex items-center gap-3">
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
               <UtensilsCrossed className="h-5 w-5" aria-hidden />
@@ -54,7 +61,6 @@ export default function NotFoundPage() {
             <p className="text-sm text-slate-400">FoodLoop</p>
           </div>
 
-          {/* title */}
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.1]">
             <span className="bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-400 bg-clip-text text-transparent">
               404
@@ -67,7 +73,6 @@ export default function NotFoundPage() {
             kembali ke beranda, atau laporkan agar tim kami bisa meninjau.
           </p>
 
-          {/* search */}
           <form onSubmit={onSearch} className="mt-6 flex gap-3" role="search" aria-label="Cari fitur FoodLoop">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" aria-hidden />
@@ -76,7 +81,7 @@ export default function NotFoundPage() {
                 type="text"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Cari: dashboard, donation map, resep…"
+                placeholder="Cari: resep, donation map, products…"
                 className="w-full rounded-xl border border-slate-700 bg-slate-800 pl-10 pr-4 py-3 placeholder:text-slate-400
                            text-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/25 focus:border-emerald-500"
               />
@@ -89,7 +94,6 @@ export default function NotFoundPage() {
             </button>
           </form>
 
-          {/* quick links */}
           <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
             {suggestions.map(({ href, label, icon: Icon }) => (
               <Link
@@ -104,8 +108,16 @@ export default function NotFoundPage() {
                   </span>
                   <span className="font-medium">{label}</span>
                 </span>
-                <svg className="h-5 w-5 text-slate-400 group-hover:text-emerald-400" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <svg
+                  className="h-5 w-5 text-slate-400 group-hover:text-emerald-400"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
                   <path d="M5 12h14" />
                   <path d="m12 5 7 7-7 7" />
                 </svg>
@@ -113,7 +125,6 @@ export default function NotFoundPage() {
             ))}
           </div>
 
-          {/* actions */}
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               onClick={() => nav(-1)}
@@ -137,7 +148,7 @@ export default function NotFoundPage() {
         </section>
 
         <p className="mt-4 text-center text-sm text-slate-400">
-          Tip: kamu juga bisa membuka <code className="rounded bg-slate-800 px-1.5 py-0.5">/donation-map</code> untuk melihat pos donasi terdekat.
+          Tip: kamu juga bisa membuka <code className="rounded bg-slate-800 px-1.5 py-0.5">/map</code> untuk melihat pos donasi terdekat.
         </p>
       </main>
     </div>
