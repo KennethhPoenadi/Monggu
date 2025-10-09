@@ -55,7 +55,7 @@ export default function Navbar({
   // 3) header nggak pakai durasi transisi panjang (biar nggak sempat “abu”)
   const HEADER_BASE = "sticky top-0 z-50 border-b border-slate-800 transition-colors duration-100";
   const HEADER_SOLID = "bg-slate-900";
-  const HEADER_GLASS = "bg-slate-900/85 backdrop-blur supports-[backdrop-filter]:bg-slate-900/70";
+  const HEADER_GLASS = "bg-slate-900";
 
   return (
     <>
