@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 
 interface HomePageProps {
   userInfo?: {
@@ -11,6 +12,26 @@ interface HomePageProps {
 }
 
 const HomePage: React.FC<HomePageProps> = ({ userInfo }) => {
+  const [stats, setStats] = useState({
+    total_donations: 0,
+    active_users: 0,
+    successful_pickups: 0,
+    co2_saved: 0,
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await axios.get("http://localhost:8000/donations/stats");
+        setStats(response.data);
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
   const features = [
     { icon: "🍽️", title: "Food Donations",         description: "Share surplus food with those in need",                  color: "from-emerald-500 to-emerald-600" },
     { icon: "📦",  title: "Product Management",      description: "Track and manage your food inventory",                  color: "from-sky-500 to-sky-600" },
@@ -18,13 +39,6 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo }) => {
     { icon: "📝",  title: "Recipe Ideas",            description: "Get creative recipes to reduce food waste",             color: "from-orange-500 to-orange-600" },
     { icon: "🏆",  title: "Rewards System",          description: "Earn points and rewards for your contributions",        color: "from-yellow-500 to-amber-600" },
     { icon: "📱",  title: "Real-time Notifications", description: "Stay updated with instant notifications",               color: "from-pink-500 to-rose-600" },
-  ];
-
-  const stats = [
-    { label: "Food Items Donated", value: "12,453", icon: "🍽️" },
-    { label: "Active Users",       value: "3,847",  icon: "👥" },
-    { label: "Successful Pickups", value: "9,276",  icon: "✅" },
-    { label: "CO2 Saved (kg)",     value: "2,845",  icon: "🌱" },
   ];
 
   return (
@@ -101,16 +115,26 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo }) => {
             Our Impact Together
           </h2>
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-            {stats.map((s, i) => (
-              <div
-                key={i}
-                className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 text-center"
-              >
-                <div className="mb-2 text-3xl">{s.icon}</div>
-                <div className="text-2xl font-extrabold text-slate-100">{s.value}</div>
-                <div className="mt-1 text-slate-400">{s.label}</div>
-              </div>
-            ))}
+            <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 text-center">
+              <span className="text-3xl">🍽️</span>
+              <h3 className="mt-2 text-lg font-semibold">Food Items Donated</h3>
+              <p className="text-xl font-bold text-emerald-400">{stats.total_donations}</p>
+            </div>
+            <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 text-center">
+              <span className="text-3xl">👥</span>
+              <h3 className="mt-2 text-lg font-semibold">Active Users</h3>
+              <p className="text-xl font-bold text-emerald-400">{stats.active_users}</p>
+            </div>
+            <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 text-center">
+              <span className="text-3xl">✅</span>
+              <h3 className="mt-2 text-lg font-semibold">Successful Pickups</h3>
+              <p className="text-xl font-bold text-emerald-400">{stats.successful_pickups}</p>
+            </div>
+            <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 text-center">
+              <span className="text-3xl">🌱</span>
+              <h3 className="mt-2 text-lg font-semibold">CO2 Saved (kg)</h3>
+              <p className="text-xl font-bold text-emerald-400">{stats.co2_saved}</p>
+            </div>
           </div>
         </section>
 

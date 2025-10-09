@@ -49,3 +49,9 @@ class DonationResponse(DonationBase):
 
 class DonationInDB(DonationResponse):
     pass
+
+class DonationStats(BaseModel):
+    total_donations: int
+    active_users: int
+    successful_pickups: int
+    co2_saved: float

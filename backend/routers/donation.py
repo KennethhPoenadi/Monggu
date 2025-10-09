@@ -9,7 +9,7 @@ import hashlib
 import base64
 from models.donation import (
     DonationCreate, DonationResponse, DonationUpdate, DonationStatus,
-    QRCodeVerification, DonationPickupRequest
+    QRCodeVerification, DonationPickupRequest, DonationStats
 )
 from database.connection import db_manager
 
@@ -573,3 +573,26 @@ async def verify_pickup(verification: QRCodeVerification, pool=Depends(get_db_po
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.get("/stats", response_model=DonationStats)
+async def get_donation_stats(pool=Depends(get_db_pool)):
+    """Get donation statistics"""
+    try:
+        async with pool.acquire() as connection:
+            total_donations = await connection.fetchval("SELECT COUNT(*) FROM donations")
+            active_users = await connection.fetchval("SELECT COUNT(DISTINCT donor_user_id) FROM donations")
+            successful_pickups = await connection.fetchval(
+                "SELECT COUNT(*) FROM donations WHERE status = 'DITERIMA'"
+            )
+            co2_saved = await connection.fetchval(
+                "SELECT COALESCE(SUM(co2_saved), 0) FROM donations"
+            )
+
+            return DonationStats(
+                total_donations=total_donations,
+                active_users=active_users,
+                successful_pickups=successful_pickups,
+                co2_saved=co2_saved,
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching donation stats: {str(e)}")
