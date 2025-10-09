@@ -99,7 +99,7 @@ function Dashboard({
           <Route path="/product" element={<ProductPage user_id={userInfo.user_id} />} />
           <Route path="/map" element={<MapPage user_id={userInfo.user_id} />} />
           <Route path="/admin" element={<AdminPage user_id={userInfo.user_id} />} />
-          <Route path="/profile" element={<ProfilePage user_id={userInfo.user_id} />} />
+          <Route path="/profile" element={<ProfilePage user_id={userInfo.user_id} userInfo={userInfo} />} />
           <Route path="/donor-verification" element={<DonorPickupVerificationPage />} />
           <Route path="/pageNotFound" element={<NotFoundPage />} />
           <Route

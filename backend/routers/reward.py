@@ -271,16 +271,24 @@ async def use_reward(user_reward_id: int, pool=Depends(get_db_pool)):
 
 @router.get("/user/{user_id}/points", response_model=dict)
 async def get_user_points(user_id: int, pool=Depends(get_db_pool)):
-    """Get user's current points"""
+    """Get user points by user_id"""
     try:
         async with pool.acquire() as connection:
-            user = await connection.fetchrow("SELECT poin, rank FROM users WHERE user_id = $1", user_id)
-            
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-            
-            return {"status": "success", "points": user['poin'], "rank": user['rank']}
-    except HTTPException:
-        raise
+            # Try getting points from accounts table first
+            points = await connection.fetchval(
+                """SELECT poin FROM accounts WHERE user_id = $1""",
+                user_id
+            )
+            if points is None:
+                # If not found in accounts, try user_rewards table
+                points = await connection.fetchval(
+                    """SELECT points FROM user_rewards WHERE user_id = $1""",
+                    user_id
+                )
+                if points is None:
+                    # If still not found, return 0 points instead of error
+                    points = 0
+            return {"status": "success", "user_id": user_id, "points": points}
     except Exception as e:
+        print(f"Error getting points for user_id {user_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

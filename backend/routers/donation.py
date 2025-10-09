@@ -151,6 +151,37 @@ async def get_user_donations(user_id: int, pool=Depends(get_db_pool)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+@router.get("/user/{user_id}/claimed", response_model=dict)
+async def get_user_claimed_donations(user_id: int, pool=Depends(get_db_pool)):
+    """Get donations claimed by specific user ID"""
+    try:
+        async with pool.acquire() as connection:
+            query = """
+                SELECT d.*, a.name as donor_name
+                FROM donations d
+                LEFT JOIN accounts a ON d.donor_user_id = a.user_id
+                WHERE d.receiver_user_id = $1
+                ORDER BY d.created_at DESC
+            """
+            
+            rows = await connection.fetch(query, user_id)
+            donations = []
+            
+            for row in rows:
+                donation = dict(row)
+                # Convert PostgreSQL array to Python list
+                if donation['type_of_food']:
+                    donation['type_of_food'] = donation['type_of_food']
+                # Convert decimal coordinates to float for frontend, handle NULL values
+                donation['latitude'] = float(donation['latitude']) if donation['latitude'] is not None else 0.0
+                donation['longitude'] = float(donation['longitude']) if donation['longitude'] is not None else 0.0
+                donations.append(donation)
+                
+            return {"status": "success", "donations": donations}
+    except Exception as e:
+        print(f"Error fetching claimed donations: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 @router.get("/", response_model=dict)
 async def get_donations(
     status: Optional[DonationStatus] = Query(None, description="Filter by status"),
@@ -579,20 +610,14 @@ async def get_donation_stats(pool=Depends(get_db_pool)):
     """Get donation statistics"""
     try:
         async with pool.acquire() as connection:
-            total_donations = await connection.fetchval("SELECT COUNT(*) FROM donations")
-            active_users = await connection.fetchval("SELECT COUNT(DISTINCT donor_user_id) FROM donations")
-            successful_pickups = await connection.fetchval(
-                "SELECT COUNT(*) FROM donations WHERE status = 'DITERIMA'"
+            stats = await connection.fetchrow(
+                """SELECT COUNT(*) AS total_donations, 
+                           SUM(amount) AS total_amount 
+                   FROM donations"""
             )
-            co2_saved = await connection.fetchval(
-                "SELECT COALESCE(SUM(co2_saved), 0) FROM donations"
-            )
-
-            return DonationStats(
-                total_donations=total_donations,
-                active_users=active_users,
-                successful_pickups=successful_pickups,
-                co2_saved=co2_saved,
-            )
+            return {
+                "total_donations": stats["total_donations"],
+                "total_amount": stats["total_amount"]
+            }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching donation stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

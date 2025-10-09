@@ -21,14 +21,29 @@ async def get_db_pool():
 
 @router.post("/", response_model=dict)
 async def create_product(product: ProductCreate, pool=Depends(get_db_pool)):
+    """Create a new product"""
     try:
         async with pool.acquire() as connection:
+            # Check if required fields are present
+            if not product.product_name or not product.type_product:
+                raise HTTPException(status_code=400, detail="Product name and type are required")
+            
             product_id = await connection.fetchval(
-                "INSERT INTO products (user_id, product_name, expiry_date, count, type_product) VALUES ($1, $2, $3, $4, $5) RETURNING product_id",
-                product.user_id, product.product_name, product.expiry_date, product.count, product.type_product
+                """INSERT INTO products (user_id, product_name, expiry_date, count, type_product) 
+                   VALUES ($1, $2, $3, $4, $5) RETURNING product_id""",
+                product.user_id,
+                product.product_name,
+                product.expiry_date,
+                product.count,
+                product.type_product
             )
             return {"status": "success", "product_id": product_id}
+    except asyncpg.exceptions.ForeignKeyViolationError:
+        raise HTTPException(status_code=400, detail="Invalid user_id")
+    except asyncpg.exceptions.UniqueViolationError:
+        raise HTTPException(status_code=409, detail="Product already exists")
     except Exception as e:
+        print(f"Error creating product: {str(e)}")  # Log untuk debugging
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @router.get("/", response_model=dict)

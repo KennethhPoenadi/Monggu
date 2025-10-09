@@ -42,7 +42,19 @@ async def get_accounts(pool=Depends(get_db_pool)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-@router.get("/{account_id}", response_model=dict)
+@router.get("/{user_id}", response_model=dict)
+async def get_account_by_user_id(user_id: int, pool=Depends(get_db_pool)):
+    try:
+        async with pool.acquire() as connection:
+            account = await connection.fetchrow("SELECT * FROM accounts WHERE user_id = $1", user_id)
+            if not account:
+                raise HTTPException(status_code=404, detail="Account not found")
+            return {"status": "success", "account": dict(account)}
+    except Exception as e:
+        print(f"Error getting account for user_id {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.get("/by-account-id/{account_id}", response_model=dict)
 async def get_account(account_id: int, pool=Depends(get_db_pool)):
     try:
         async with pool.acquire() as connection:
