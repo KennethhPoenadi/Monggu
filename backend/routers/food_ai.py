@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, File, UploadFile
 from typing import Dict, Any, List, Optional
 import json
 import os
@@ -9,6 +9,9 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 import threading
 import logging
+
+# Import our improved food classifier
+from models.food_classifier import food_classifier
 
 router = APIRouter()
 
@@ -1120,3 +1123,195 @@ async def get_chat_stats():
         "active_conversations": total_conversations,
         "average_messages_per_conversation": total_messages / max(1, total_conversations)
     }
+
+# === FOOD CLASSIFICATION ENDPOINTS ===
+
+class FoodClassificationResponse(BaseModel):
+    success: bool
+    primary_food_type: str
+    confidence: float
+    category: str
+    confidence_level: str
+    alternative_types: List[Dict[str, Any]]
+    is_food: bool
+    detailed_predictions: List[Dict[str, Any]]
+    nutritional_info: Dict[str, Any]
+    processing_time: float
+    metadata: Dict[str, Any]
+
+@router.post("/classify-food", response_model=FoodClassificationResponse)
+async def classify_food_image(file: UploadFile = File(...)) -> FoodClassificationResponse:
+    """
+    Advanced food classification using specialized AI models
+    Upload an image and get detailed food classification results
+    """
+    import time
+    start_time = time.time()
+    
+    try:
+        # Validate file type
+        if not file.content_type or not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File harus berupa gambar")
+        
+        # Read image bytes
+        image_bytes = await file.read()
+        
+        if len(image_bytes) == 0:
+            raise HTTPException(status_code=400, detail="File gambar kosong")
+        
+        print(f"🖼️ Processing food image: {file.filename} ({len(image_bytes)} bytes)")
+        
+        # Classify the food using our advanced AI model
+        classification_result = food_classifier.predict_food_categories(image_bytes)
+        
+        # Get nutritional information for the detected food
+        nutritional_info = food_classifier.get_nutritional_info(
+            classification_result["primary_food_type"]
+        )
+        
+        processing_time = time.time() - start_time
+        
+        # Build comprehensive response
+        response = FoodClassificationResponse(
+            success=True,
+            primary_food_type=classification_result["primary_food_type"],
+            confidence=classification_result["confidence"],
+            category=classification_result["category"],
+            confidence_level=classification_result["confidence_level"],
+            alternative_types=classification_result["alternative_types"],
+            is_food=classification_result["is_food"],
+            detailed_predictions=classification_result["detailed_predictions"],
+            nutritional_info=nutritional_info,
+            processing_time=round(processing_time, 3),
+            metadata={
+                "file_name": file.filename,
+                "file_size": len(image_bytes),
+                "ai_model": classification_result["ai_model"],
+                "device_used": classification_result["processing_metadata"]["device_used"],
+                "total_predictions": classification_result["processing_metadata"]["total_predictions"]
+            }
+        )
+        
+        print(f"✅ Food classification complete: {classification_result['primary_food_type']} ({classification_result['confidence']:.3f})")
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error in food classification: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing gambar: {str(e)}")
+
+@router.post("/classify-food-simple")
+async def classify_food_simple(file: UploadFile = File(...)) -> Dict[str, Any]:
+    """
+    Simple food classification endpoint - returns basic results
+    """
+    try:
+        # Validate file
+        if not file.content_type or not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File harus berupa gambar")
+        
+        # Read and process image
+        image_bytes = await file.read()
+        predictions = food_classifier.predict(image_bytes, top_k=3)
+        
+        if not predictions:
+            return {
+                "success": False,
+                "message": "Tidak dapat mengklasifikasi gambar"
+            }
+        
+        # Return simple response
+        top_prediction = predictions[0]
+        
+        return {
+            "success": True,
+            "food_type": top_prediction["food_type"],
+            "confidence": round(top_prediction["confidence"], 3),
+            "category": top_prediction["category"],
+            "alternatives": [
+                {
+                    "name": p["food_type"], 
+                    "confidence": round(p["confidence"], 3)
+                } 
+                for p in predictions[1:]
+            ]
+        }
+        
+    except Exception as e:
+        print(f"❌ Error in simple classification: {e}")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }
+
+@router.get("/food-categories")
+async def get_food_categories():
+    """
+    Get list of supported food categories
+    """
+    categories = {
+        "buah": "Buah-buahan (Fruits)",
+        "sayuran": "Sayuran (Vegetables)", 
+        "protein": "Protein (Meat, Fish, Eggs)",
+        "karbohidrat": "Karbohidrat (Rice, Bread, Noodles)",
+        "dairy": "Produk Susu (Dairy Products)",
+        "makanan_siap": "Makanan Siap Saji (Ready-to-eat Foods)",
+        "minuman": "Minuman (Beverages)",
+        "lainnya": "Lainnya (Others)"
+    }
+    
+    return {
+        "categories": categories,
+        "total_categories": len(categories),
+        "supported_languages": ["Indonesian", "English"]
+    }
+
+@router.get("/nutrition/{food_name}")
+async def get_food_nutrition(food_name: str):
+    """
+    Get nutritional information for a specific food item
+    """
+    try:
+        nutrition_info = food_classifier.get_nutritional_info(food_name)
+        
+        return {
+            "success": nutrition_info["found"],
+            "food": food_name,
+            "nutrition_data": nutrition_info
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "food": food_name,
+            "error": str(e)
+        }
+
+@router.get("/model-status")
+async def get_model_status():
+    """
+    Get current status of the food classification model
+    """
+    try:
+        model_status = {
+            "model_loaded": food_classifier.classifier_pipeline is not None,
+            "device": str(food_classifier.device),
+            "available_models": food_classifier.food_models,
+            "translation_support": len(food_classifier.translation_dict),
+            "ready": food_classifier.classifier_pipeline is not None
+        }
+        
+        if food_classifier.classifier_pipeline is not None:
+            model_status["model_info"] = "Specialized food classification model loaded"
+        else:
+            model_status["model_info"] = "Model not loaded - will initialize on first use"
+        
+        return model_status
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "model_loaded": False
+        }
