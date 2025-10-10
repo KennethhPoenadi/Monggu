@@ -7,6 +7,8 @@ import {
   type NearbyDonation,
 } from "../../types/donation";
 import { type Product } from "../../types/product";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 
 interface DonationPageProps {
   user_id: number;
@@ -16,6 +18,16 @@ const STATUS_CHIP: Record<string, string> = {
   Diajukan: "bg-amber-400/15 text-amber-300 border border-amber-400/30",
   "Siap Dijemput": "bg-sky-400/15 text-sky-300 border border-sky-400/30",
   Diterima: "bg-emerald-400/15 text-emerald-300 border border-emerald-400/30",
+};
+
+// Helper component to handle map clicks
+const LocationMarker: React.FC<{ setUserLocation: (location: { lat: number; lng: number }) => void }> = ({ setUserLocation }) => {
+  useMapEvents({
+    click(e) {
+      setUserLocation({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
 };
 
 const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
@@ -160,17 +172,6 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
   const addExpiringProduct = (product: Product) => {
     setSelectedProducts((prev) =>
       prev.some((p) => p.product_id === product.product_id) ? prev : [...prev, product]
-    );
-  };
-
-  const useMyLocation = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => {
-        console.error("Error getting location:", err);
-        alert("Could not get your location. Please try again.");
-      }
     );
   };
 
@@ -333,7 +334,7 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                       </span>
                       <button
                         onClick={() => openInGoogleMaps(d.latitude, d.longitude)}
-                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700 whitespace-nowrap self-start"
+                        className="rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-3 py-1 text-xs font-semibold text-white hover:from-sky-600 hover:to-blue-700 shadow-md hover:shadow-lg whitespace-nowrap self-start"
                         title="Navigate in Google Maps"
                       >
                         🗺️ Navigate
@@ -428,7 +429,7 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                       </span>
                       <button
                         onClick={() => openInGoogleMaps(d.latitude, d.longitude)}
-                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700 whitespace-nowrap self-start"
+                        className="rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-3 py-1 text-xs font-semibold text-white hover:from-sky-600 hover:to-blue-700 shadow-md hover:shadow-lg whitespace-nowrap self-start"
                       >
                         🗺️ Navigate
                       </button>
@@ -492,9 +493,9 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                         <div
                           key={p.product_id}
                           onClick={() => toggleProductSelection(p)}
-                          className={`flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors ${
+                          className={`flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors shadow-md hover:shadow-lg ${
                             isSelected
-                              ? "bg-emerald-500/10 border border-emerald-500/40"
+                              ? "bg-gradient-to-r from-emerald-500 to-green-600 border border-emerald-500/40"
                               : "bg-slate-800/50 hover:bg-slate-800 border border-slate-700"
                           }`}
                         >
@@ -536,20 +537,26 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                   Pickup Location
                 </label>
                 <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={useMyLocation}
-                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold hover:bg-emerald-700"
+                  <MapContainer
+                    center={[userLocation?.lat || -6.2, userLocation?.lng || 106.8]} // Default to Jakarta
+                    zoom={13}
+                    style={{ height: "300px", borderRadius: "0.75rem" }}
+                    className="border border-slate-700 shadow-md"
                   >
-                    📍 Use My Current Location
-                  </button>
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    />
+                    {userLocation && <Marker position={[userLocation.lat, userLocation.lng]} />}
+                    <LocationMarker setUserLocation={setUserLocation} />
+                  </MapContainer>
                   {userLocation ? (
                     <p className="text-sm text-slate-300">
-                      Location: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
+                      Selected Location: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
                     </p>
                   ) : (
                     <p className="text-sm text-rose-300">
-                      Location not available. Please allow location access.
+                      Click on the map to select a location.
                     </p>
                   )}
                 </div>
@@ -563,14 +570,14 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                     setShowCreateForm(false);
                     setSelectedProducts([]);
                   }}
-                  className="rounded-lg border border-slate-700 px-4 py-2 text-slate-200 hover:bg-slate-800"
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-slate-200 hover:bg-slate-800 shadow-md hover:shadow-lg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading || selectedProducts.length === 0 || !userLocation}
-                  className="rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-600"
+                  className="rounded-lg bg-gradient-to-r from-emerald-500 to-green-600 px-5 py-2 font-semibold text-white hover:from-emerald-600 hover:to-green-700 shadow-md hover:shadow-lg disabled:cursor-not-allowed disabled:bg-slate-600"
                 >
                   {loading ? "Creating..." : "Create Donation"}
                 </button>
