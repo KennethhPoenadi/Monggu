@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { NotificationType, type Notification } from "../../types/notification";
 
 interface NotificationPageProps {
@@ -9,6 +9,7 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const ws = useRef<WebSocket | null>(null);
 
   // --- load
   const loadNotifications = useCallback(async () => {
@@ -28,7 +29,29 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
 
   useEffect(() => {
     loadNotifications();
-  }, [loadNotifications]);
+
+    // Initialize WebSocket connection
+    ws.current = new WebSocket(`ws://localhost:8000/ws/notifications/${user_id}`);
+
+    ws.current.onmessage = (event) => {
+      const newNotification: Notification = JSON.parse(event.data);
+      setNotifications((prev) => [newNotification, ...prev]);
+    };
+
+    ws.current.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    ws.current.onclose = () => {
+      console.log("WebSocket connection closed.");
+    };
+
+    return () => {
+      if (ws.current) {
+        ws.current.close();
+      }
+    };
+  }, [loadNotifications, user_id]);
 
   // --- actions
   const markAsRead = async (notificationId: number) => {
@@ -57,7 +80,7 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
       );
       const data = await response.json();
       if (data.status === "success") {
-        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+        setNotifications((prev) => prev.filter((n) => n.is_read));
       }
     } catch (error) {
       console.error("Error marking all as read:", error);
@@ -135,6 +158,30 @@ const NotificationPage: React.FC<NotificationPageProps> = ({ user_id }) => {
     el.style.removeProperty("--x");
     el.style.removeProperty("--y");
   };
+
+  useEffect(() => {
+    const checkExpiringProducts = async () => {
+      try {
+        const response = await fetch(`http://localhost:8000/products/user/${user_id}/expiring?days=3`);
+        const data = await response.json();
+        if (data.status === "success" && data.products.length > 0) {
+          const expiringNotifications = data.products.map((product: { product_id: number; product_name: string; expiry_date: string }) => ({
+            notification_id: `expiring-${product.product_id}`,
+            title: "Product Expiring Soon",
+            message: `${product.product_name} will expire on ${new Date(product.expiry_date).toLocaleDateString()}. Please take action!`,
+            notification_type: NotificationType.ProductExpiring,
+            is_read: false,
+            created_at: new Date().toISOString(),
+          }));
+          setNotifications((prev) => [...expiringNotifications, ...prev]);
+        }
+      } catch (error) {
+        console.error("Error checking expiring products:", error);
+      }
+    };
+
+    checkExpiringProducts();
+  }, [user_id]);
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
