@@ -65,7 +65,7 @@ export default function Navbar({
         <div className="mx-auto max-w-7xl px-4 md:px-6">
           <div className="flex h-[13vh] items-center justify-between gap-3">
             <div className="flex shrink-0 items-center space-x-3 pr-1">
-              <div className="text-2xl">🍃</div>
+              <img src="/foodloopaseli.png" alt="FoodLoop" className="h-15 w-auto rounded-full" />
               <div className="-ml-1">
                 <h1 className="bg-gradient-to-r from-emerald-400 to-emerald-300 bg-clip-text text-xl font-extrabold leading-6 text-transparent">
                   FoodLoop
