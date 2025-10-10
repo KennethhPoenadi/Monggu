@@ -50,7 +50,7 @@ export default function Navbar({
   const INACTIVE_ITEM =
     "text-slate-300 hover:text-emerald-300 hover:bg-slate-800/80 hover:ring-1 hover:ring-emerald-500/30 hover:shadow-md hover:shadow-emerald-500/10";
 
-  const HEADER_BASE = "sticky top-0 z-50 border-b border-slate-800 transition-colors duration-100";
+  const HEADER_BASE = "sticky top-0 z-50 border-slate-800 transition-colors duration-100";
   const HEADER_SOLID = "bg-slate-900 h-[90px]";
   const HEADER_GLASS = "bg-slate-900 h-[90px]";
 
