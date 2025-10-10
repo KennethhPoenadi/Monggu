@@ -41,10 +41,9 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo }) => {
   ];
 
   return (
-    <div className="relative min-h-[calc(100vh-120px)] overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
-      {/* Welcome Back Section */}
+    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
       {userInfo && (
-        <div className="mx-auto mt-8 max-w-7xl px-6 text-center md:text-left">
+        <div className="mx-auto mt-[10vh] max-w-7xl px-6 text-center md:text-left">
           <div className="flex flex-col items-center gap-6 md:flex-row md:items-start md:gap-10">
             <div
               className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 shadow-lg md:h-28 md:w-28"

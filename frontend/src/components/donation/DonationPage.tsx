@@ -254,20 +254,21 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
 
       <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
         {/* header card */}
-        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/70 backdrop-blur-xl p-6 md:p-8 shadow-xl flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Food Donations</h1>
-            <p className="text-slate-300 mt-1">Create, manage, and discover nearby donations.</p>
+        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/70 backdrop-blur-xl p-4 sm:p-6 md:p-8 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Food Donations</h1>
+              <p className="text-slate-300 mt-1 text-sm sm:text-base">Create, manage, and discover nearby donations.</p>
+            </div>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 sm:px-5 py-2 sm:py-2.5 font-semibold shadow-lg hover:shadow-emerald-500/20 text-sm sm:text-base whitespace-nowrap"
+            >
+              Create Donation
+            </button>
           </div>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 font-semibold shadow-lg hover:shadow-emerald-500/20"
-          >
-            Create Donation
-          </button>
         </section>
 
-        {/* expiring products alert */}
         {expiringProducts.length > 0 && (
           <section className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5 text-amber-200">
             <p className="font-semibold">
@@ -325,14 +326,14 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                     <p className="text-slate-300">
                       <span className="text-slate-400">Foods:</span> {d.type_of_food.join(", ")}
                     </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-300">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <span className="text-slate-300 text-xs sm:text-sm">
                         <span className="text-slate-400">Location:</span>{" "}
                         {d.latitude.toFixed(4)}, {d.longitude.toFixed(4)}
                       </span>
                       <button
                         onClick={() => openInGoogleMaps(d.latitude, d.longitude)}
-                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700"
+                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700 whitespace-nowrap self-start"
                         title="Navigate in Google Maps"
                       >
                         🗺️ Navigate
@@ -399,9 +400,9 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                         "radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(16,185,129,.15), transparent 40%)",
                     }}
                   />
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold w-fit ${
                         STATUS_CHIP[d.status] ||
                         "bg-slate-700/50 text-slate-200 border border-slate-600"
                       }`}
@@ -420,14 +421,14 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                     <p className="text-slate-300">
                       <span className="text-slate-400">Donor:</span> {d.donor_name || "Anonymous"}
                     </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-300">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <span className="text-slate-300 text-xs sm:text-sm">
                         <span className="text-slate-400">Location:</span>{" "}
                         {d.latitude.toFixed(4)}, {d.longitude.toFixed(4)}
                       </span>
                       <button
                         onClick={() => openInGoogleMaps(d.latitude, d.longitude)}
-                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700"
+                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700 whitespace-nowrap self-start"
                       >
                         🗺️ Navigate
                       </button>
