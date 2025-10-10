@@ -121,14 +121,12 @@ const MapPage: React.FC<MapPageProps> = ({ user_id }) => {
     }
   };
 
-  // INIT Leaflet map (re-init aman saat state berubah)
   useEffect(() => {
     if (!userLocation) return;
 
-    // fix: kalau sudah pernah ada instance, reset id biar gak error
-    const existing = (L as any).DomUtil.get("map");
+    const existing = L.DomUtil.get("map") as HTMLElement | null;
     if (existing) {
-      // @ts-ignore
+      // @ts-expect-error: _leaflet_id is used by Leaflet for internal tracking
       existing._leaflet_id = undefined;
     }
 
@@ -197,7 +195,7 @@ const MapPage: React.FC<MapPageProps> = ({ user_id }) => {
   }, [userLocation, donations, claimedDonations, myDonations]);
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
+    <div className="relative overflow-hidden min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
       {/* blob dekorasi */}
       <svg
         className="pointer-events-none absolute -right-24 -top-24 h-[36rem] w-[36rem] opacity-20 blur-3xl"

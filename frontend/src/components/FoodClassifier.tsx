@@ -89,11 +89,9 @@ const FoodClassifier: React.FC<FoodClassifierProps> = ({
       });
 
       const data = await response.json();
-      console.log('API Response:', data); // Debug log
+      console.log('API Response:', data);
 
-      // Check if the response is successful (new format)
       if (data.success === true || response.ok) {
-        // Handle new API response format
         const foodAnalysis: FoodAnalysis = {
           primary_food_type: data.primary_food_type,
           confidence: data.confidence,
