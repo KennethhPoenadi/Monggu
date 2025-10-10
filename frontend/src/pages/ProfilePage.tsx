@@ -136,7 +136,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user_id, userInfo }) => {
       const response = await fetch("http://localhost:8000/donations/verify-pickup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qr_hash: scannedData }),
+        body: JSON.stringify({ 
+          qr_hash: scannedData,
+          receiver_user_id: user_id  // Add user_id to validate ownership
+        }),
       });
 
       if (!response.ok) {

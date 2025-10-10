@@ -557,14 +557,21 @@ async def get_qr_code(donation_id: int, pool=Depends(get_db_pool)):
 
 @router.post("/verify-pickup", response_model=dict)
 async def verify_pickup(verification: QRCodeVerification, pool=Depends(get_db_pool)):
-    """Verify QR code hash and mark donation as completed"""
+    """Verify QR code hash and mark donation as completed with user validation"""
     try:
         async with pool.acquire() as connection:
-            # Find all donations with 'Siap Dijemput' status
+            # Security: Find donations where user is the authorized receiver
             donations = await connection.fetch(
                 """SELECT * FROM donations 
-                   WHERE status = 'Siap Dijemput'"""
+                   WHERE status = 'Siap Dijemput' AND receiver_user_id = $1""",
+                verification.receiver_user_id
             )
+            
+            if not donations:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="No donations ready for pickup by this user"
+                )
             
             # Check which donation matches the QR hash
             matching_donation = None
@@ -574,7 +581,17 @@ async def verify_pickup(verification: QRCodeVerification, pool=Depends(get_db_po
                     break
             
             if not matching_donation:
-                raise HTTPException(status_code=400, detail="Invalid QR code or donation not ready")
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Invalid QR code or you are not authorized to pick up this donation"
+                )
+            
+            # Double-check: Ensure the user scanning is indeed the receiver
+            if matching_donation['receiver_user_id'] != verification.receiver_user_id:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Access denied: You are not authorized to pick up this donation"
+                )
             
             # Update status to completed
             await connection.execute(
