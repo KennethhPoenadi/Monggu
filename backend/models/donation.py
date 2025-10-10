@@ -31,6 +31,7 @@ class DonationUpdate(BaseModel):
 
 class QRCodeVerification(BaseModel):
     qr_hash: str
+    receiver_user_id: int  # User who is scanning the QR code
 
 class DonationPickupRequest(BaseModel):
     donation_id: int

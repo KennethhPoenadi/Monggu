@@ -4,13 +4,37 @@ import { Camera, Upload, X, Loader2, Check } from 'lucide-react';
 interface FoodAnalysis {
   primary_food_type: string;
   confidence: number;
-  alternative_types: string[];
+  category: string;
+  confidence_level: string;
+  alternative_types: Array<{
+    name: string;
+    confidence: number;
+    category: string;
+  }>;
   is_food: boolean;
   detailed_predictions: Array<{
     food_type: string;
     confidence: number;
-    category_id: number;
+    category: string;
+    source: string;
   }>;
+  nutritional_info: {
+    found: boolean;
+    food: string;
+    nutrition?: {
+      kalori?: number;
+      karbohidrat?: number;
+      protein?: number;
+      lemak?: number;
+    };
+    message?: string;
+  };
+  processing_time: number;
+  metadata: {
+    file_name: string;
+    file_size: number;
+    ai_model: string;
+  };
 }
 
 interface FoodClassifierProps {
@@ -65,16 +89,31 @@ const FoodClassifier: React.FC<FoodClassifierProps> = ({
       });
 
       const data = await response.json();
+      console.log('API Response:', data); // Debug log
 
-      if (data.status === 'success') {
-        const foodAnalysis = data.data.analysis;
+      // Check if the response is successful (new format)
+      if (data.success === true || response.ok) {
+        // Handle new API response format
+        const foodAnalysis: FoodAnalysis = {
+          primary_food_type: data.primary_food_type,
+          confidence: data.confidence,
+          category: data.category,
+          confidence_level: data.confidence_level,
+          alternative_types: data.alternative_types || [],
+          is_food: data.is_food,
+          detailed_predictions: data.detailed_predictions || [],
+          nutritional_info: data.nutritional_info || { found: false, food: data.primary_food_type },
+          processing_time: data.processing_time || 0,
+          metadata: data.metadata || {}
+        };
+        
         setAnalysis(foodAnalysis);
         
         if (onFoodDetected) {
           onFoodDetected(foodAnalysis.primary_food_type, foodAnalysis);
         }
       } else {
-        setError('Failed to analyze image');
+        setError(data.detail || 'Failed to analyze image');
       }
     } catch (err) {
       setError('Error connecting to AI service');
@@ -207,17 +246,31 @@ const FoodClassifier: React.FC<FoodClassifierProps> = ({
               <div className="bg-white rounded-xl p-4 mb-4 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
                   <h5 className="font-semibold text-gray-800">Primary Detection:</h5>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getConfidenceColor(analysis.confidence)}`}>
-                    {(analysis.confidence * 100).toFixed(1)}% confident
-                  </span>
+                  <div className="flex flex-col items-end">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getConfidenceColor(analysis.confidence)}`}>
+                      {(analysis.confidence * 100).toFixed(1)}% confident
+                    </span>
+                    {analysis.confidence_level && (
+                      <span className="text-xs text-gray-500 mt-1">
+                        Level: {analysis.confidence_level.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xl font-bold text-green-600">
-                  🍽️ {analysis.primary_food_type}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xl font-bold text-green-600">
+                    🍽️ {analysis.primary_food_type}
+                  </p>
+                  {analysis.category && (
+                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                      {analysis.category}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Alternative Types */}
-              {analysis.alternative_types.length > 0 && (
+              {analysis.alternative_types && analysis.alternative_types.length > 0 && (
                 <div className="bg-white rounded-xl p-4 mb-4 shadow-sm">
                   <h5 className="font-semibold text-gray-800 mb-2">Alternative Possibilities:</h5>
                   <div className="flex flex-wrap gap-2">
@@ -226,7 +279,12 @@ const FoodClassifier: React.FC<FoodClassifierProps> = ({
                         key={index}
                         className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm"
                       >
-                        {type}
+                        {typeof type === 'string' ? type : type.name} 
+                        {typeof type === 'object' && type.confidence && (
+                          <span className="ml-1 text-xs text-gray-500">
+                            ({(type.confidence * 100).toFixed(0)}%)
+                          </span>
+                        )}
                       </span>
                     ))}
                   </div>
@@ -234,12 +292,17 @@ const FoodClassifier: React.FC<FoodClassifierProps> = ({
               )}
 
               {/* Detailed Predictions */}
-              <div className="bg-white rounded-xl p-4 shadow-sm">
+              <div className="bg-white rounded-xl p-4 mb-4 shadow-sm">
                 <h5 className="font-semibold text-gray-800 mb-3">Detailed Analysis:</h5>
                 <div className="space-y-2">
                   {analysis.detailed_predictions.map((prediction, index) => (
                     <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                      <span className="text-gray-700">{prediction.food_type}</span>
+                      <div className="flex flex-col">
+                        <span className="text-gray-700">{prediction.food_type}</span>
+                        {prediction.category && (
+                          <span className="text-xs text-gray-500">Category: {prediction.category}</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         <div className="w-24 bg-gray-200 rounded-full h-2">
                           <div
@@ -255,6 +318,49 @@ const FoodClassifier: React.FC<FoodClassifierProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* Nutritional Information */}
+              {analysis.nutritional_info?.found && analysis.nutritional_info.nutrition && (
+                <div className="bg-white rounded-xl p-4 mb-4 shadow-sm">
+                  <h5 className="font-semibold text-gray-800 mb-3">🥗 Nutritional Information (per 100g):</h5>
+                  <div className="grid grid-cols-2 gap-3">
+                    {analysis.nutritional_info.nutrition.kalori && (
+                      <div className="bg-orange-50 p-3 rounded-lg">
+                        <span className="text-orange-600 font-medium">Calories</span>
+                        <p className="text-lg font-bold text-orange-800">{analysis.nutritional_info.nutrition.kalori} kcal</p>
+                      </div>
+                    )}
+                    {analysis.nutritional_info.nutrition.protein && (
+                      <div className="bg-red-50 p-3 rounded-lg">
+                        <span className="text-red-600 font-medium">Protein</span>
+                        <p className="text-lg font-bold text-red-800">{analysis.nutritional_info.nutrition.protein}g</p>
+                      </div>
+                    )}
+                    {analysis.nutritional_info.nutrition.karbohidrat && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <span className="text-blue-600 font-medium">Carbs</span>
+                        <p className="text-lg font-bold text-blue-800">{analysis.nutritional_info.nutrition.karbohidrat}g</p>
+                      </div>
+                    )}
+                    {analysis.nutritional_info.nutrition.lemak && (
+                      <div className="bg-yellow-50 p-3 rounded-lg">
+                        <span className="text-yellow-600 font-medium">Fat</span>
+                        <p className="text-lg font-bold text-yellow-800">{analysis.nutritional_info.nutrition.lemak}g</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Processing Info */}
+              {analysis.processing_time && (
+                <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>🤖 AI Model: {analysis.metadata?.ai_model || 'Advanced Food Classifier'}</span>
+                    <span>⏱️ Processing: {analysis.processing_time.toFixed(2)}s</span>
+                  </div>
+                </div>
+              )}
 
               {/* Food Detection Status */}
               <div className="mt-4 text-center">

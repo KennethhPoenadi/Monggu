@@ -151,6 +151,37 @@ async def get_user_donations(user_id: int, pool=Depends(get_db_pool)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+@router.get("/user/{user_id}/claimed", response_model=dict)
+async def get_user_claimed_donations(user_id: int, pool=Depends(get_db_pool)):
+    """Get donations claimed by specific user ID"""
+    try:
+        async with pool.acquire() as connection:
+            query = """
+                SELECT d.*, a.name as donor_name
+                FROM donations d
+                LEFT JOIN accounts a ON d.donor_user_id = a.user_id
+                WHERE d.receiver_user_id = $1
+                ORDER BY d.created_at DESC
+            """
+            
+            rows = await connection.fetch(query, user_id)
+            donations = []
+            
+            for row in rows:
+                donation = dict(row)
+                # Convert PostgreSQL array to Python list
+                if donation['type_of_food']:
+                    donation['type_of_food'] = donation['type_of_food']
+                # Convert decimal coordinates to float for frontend, handle NULL values
+                donation['latitude'] = float(donation['latitude']) if donation['latitude'] is not None else 0.0
+                donation['longitude'] = float(donation['longitude']) if donation['longitude'] is not None else 0.0
+                donations.append(donation)
+                
+            return {"status": "success", "donations": donations}
+    except Exception as e:
+        print(f"Error fetching claimed donations: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 @router.get("/", response_model=dict)
 async def get_donations(
     status: Optional[DonationStatus] = Query(None, description="Filter by status"),
@@ -526,14 +557,21 @@ async def get_qr_code(donation_id: int, pool=Depends(get_db_pool)):
 
 @router.post("/verify-pickup", response_model=dict)
 async def verify_pickup(verification: QRCodeVerification, pool=Depends(get_db_pool)):
-    """Verify QR code hash and mark donation as completed"""
+    """Verify QR code hash and mark donation as completed with user validation"""
     try:
         async with pool.acquire() as connection:
-            # Find all donations with 'Siap Dijemput' status
+            # Security: Find donations where user is the authorized receiver
             donations = await connection.fetch(
                 """SELECT * FROM donations 
-                   WHERE status = 'Siap Dijemput'"""
+                   WHERE status = 'Siap Dijemput' AND receiver_user_id = $1""",
+                verification.receiver_user_id
             )
+            
+            if not donations:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="No donations ready for pickup by this user"
+                )
             
             # Check which donation matches the QR hash
             matching_donation = None
@@ -543,7 +581,17 @@ async def verify_pickup(verification: QRCodeVerification, pool=Depends(get_db_po
                     break
             
             if not matching_donation:
-                raise HTTPException(status_code=400, detail="Invalid QR code or donation not ready")
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Invalid QR code or you are not authorized to pick up this donation"
+                )
+            
+            # Double-check: Ensure the user scanning is indeed the receiver
+            if matching_donation['receiver_user_id'] != verification.receiver_user_id:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Access denied: You are not authorized to pick up this donation"
+                )
             
             # Update status to completed
             await connection.execute(
@@ -579,20 +627,14 @@ async def get_donation_stats(pool=Depends(get_db_pool)):
     """Get donation statistics"""
     try:
         async with pool.acquire() as connection:
-            total_donations = await connection.fetchval("SELECT COUNT(*) FROM donations")
-            active_users = await connection.fetchval("SELECT COUNT(DISTINCT donor_user_id) FROM donations")
-            successful_pickups = await connection.fetchval(
-                "SELECT COUNT(*) FROM donations WHERE status = 'DITERIMA'"
+            stats = await connection.fetchrow(
+                """SELECT COUNT(*) AS total_donations, 
+                           SUM(amount) AS total_amount 
+                   FROM donations"""
             )
-            co2_saved = await connection.fetchval(
-                "SELECT COALESCE(SUM(co2_saved), 0) FROM donations"
-            )
-
-            return DonationStats(
-                total_donations=total_donations,
-                active_users=active_users,
-                successful_pickups=successful_pickups,
-                co2_saved=co2_saved,
-            )
+            return {
+                "total_donations": stats["total_donations"],
+                "total_amount": stats["total_amount"]
+            }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching donation stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

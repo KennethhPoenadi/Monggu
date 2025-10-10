@@ -66,6 +66,13 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...formData, user_id }),
       });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Server error:", errorText);
+        throw new Error(`HTTP ${res.status}: ${errorText}`);
+      }
+      
       const data = await res.json();
       if (data.status === "success") {
         setShowCreateForm(false);
@@ -76,7 +83,7 @@ const ProductPage: React.FC<ProductPageProps> = ({ user_id }) => {
       }
     } catch (e) {
       console.error("Error creating product:", e);
-      alert("Error creating product");
+      alert("Error creating product: " + (e instanceof Error ? e.message : "Unknown error"));
     } finally {
       setLoading(false);
     }

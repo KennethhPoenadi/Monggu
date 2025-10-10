@@ -7,6 +7,8 @@ import {
   type NearbyDonation,
 } from "../../types/donation";
 import { type Product } from "../../types/product";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 
 interface DonationPageProps {
   user_id: number;
@@ -16,6 +18,16 @@ const STATUS_CHIP: Record<string, string> = {
   Diajukan: "bg-amber-400/15 text-amber-300 border border-amber-400/30",
   "Siap Dijemput": "bg-sky-400/15 text-sky-300 border border-sky-400/30",
   Diterima: "bg-emerald-400/15 text-emerald-300 border border-emerald-400/30",
+};
+
+// Helper component to handle map clicks
+const LocationMarker: React.FC<{ setUserLocation: (location: { lat: number; lng: number }) => void }> = ({ setUserLocation }) => {
+  useMapEvents({
+    click(e) {
+      setUserLocation({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
 };
 
 const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
@@ -163,17 +175,6 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
     );
   };
 
-  const useMyLocation = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => {
-        console.error("Error getting location:", err);
-        alert("Could not get your location. Please try again.");
-      }
-    );
-  };
-
   const handleCancelDonation = async (donationId: number) => {
     if (!confirm("Cancel this donation? Products will be restored.")) return;
     try {
@@ -254,20 +255,21 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
 
       <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
         {/* header card */}
-        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/70 backdrop-blur-xl p-6 md:p-8 shadow-xl flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Food Donations</h1>
-            <p className="text-slate-300 mt-1">Create, manage, and discover nearby donations.</p>
+        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/70 backdrop-blur-xl p-4 sm:p-6 md:p-8 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Food Donations</h1>
+              <p className="text-slate-300 mt-1 text-sm sm:text-base">Create, manage, and discover nearby donations.</p>
+            </div>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 sm:px-5 py-2 sm:py-2.5 font-semibold shadow-lg hover:shadow-emerald-500/20 text-sm sm:text-base whitespace-nowrap"
+            >
+              Create Donation
+            </button>
           </div>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 font-semibold shadow-lg hover:shadow-emerald-500/20"
-          >
-            Create Donation
-          </button>
         </section>
 
-        {/* expiring products alert */}
         {expiringProducts.length > 0 && (
           <section className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5 text-amber-200">
             <p className="font-semibold">
@@ -325,14 +327,14 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                     <p className="text-slate-300">
                       <span className="text-slate-400">Foods:</span> {d.type_of_food.join(", ")}
                     </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-300">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <span className="text-slate-300 text-xs sm:text-sm">
                         <span className="text-slate-400">Location:</span>{" "}
                         {d.latitude.toFixed(4)}, {d.longitude.toFixed(4)}
                       </span>
                       <button
                         onClick={() => openInGoogleMaps(d.latitude, d.longitude)}
-                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700"
+                        className="rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-3 py-1 text-xs font-semibold text-white hover:from-sky-600 hover:to-blue-700 shadow-md hover:shadow-lg whitespace-nowrap self-start"
                         title="Navigate in Google Maps"
                       >
                         🗺️ Navigate
@@ -399,9 +401,9 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                         "radial-gradient(600px circle at var(--x, 50%) var(--y, 50%), rgba(16,185,129,.15), transparent 40%)",
                     }}
                   />
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold w-fit ${
                         STATUS_CHIP[d.status] ||
                         "bg-slate-700/50 text-slate-200 border border-slate-600"
                       }`}
@@ -420,14 +422,14 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                     <p className="text-slate-300">
                       <span className="text-slate-400">Donor:</span> {d.donor_name || "Anonymous"}
                     </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-300">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <span className="text-slate-300 text-xs sm:text-sm">
                         <span className="text-slate-400">Location:</span>{" "}
                         {d.latitude.toFixed(4)}, {d.longitude.toFixed(4)}
                       </span>
                       <button
                         onClick={() => openInGoogleMaps(d.latitude, d.longitude)}
-                        className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold hover:bg-sky-700"
+                        className="rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-3 py-1 text-xs font-semibold text-white hover:from-sky-600 hover:to-blue-700 shadow-md hover:shadow-lg whitespace-nowrap self-start"
                       >
                         🗺️ Navigate
                       </button>
@@ -491,9 +493,9 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                         <div
                           key={p.product_id}
                           onClick={() => toggleProductSelection(p)}
-                          className={`flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors ${
+                          className={`flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors shadow-md hover:shadow-lg ${
                             isSelected
-                              ? "bg-emerald-500/10 border border-emerald-500/40"
+                              ? "bg-gradient-to-r from-emerald-500 to-green-600 border border-emerald-500/40"
                               : "bg-slate-800/50 hover:bg-slate-800 border border-slate-700"
                           }`}
                         >
@@ -535,20 +537,26 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                   Pickup Location
                 </label>
                 <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={useMyLocation}
-                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold hover:bg-emerald-700"
+                  <MapContainer
+                    center={[userLocation?.lat || -6.2, userLocation?.lng || 106.8]} // Default to Jakarta
+                    zoom={13}
+                    style={{ height: "300px", borderRadius: "0.75rem" }}
+                    className="border border-slate-700 shadow-md"
                   >
-                    📍 Use My Current Location
-                  </button>
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    />
+                    {userLocation && <Marker position={[userLocation.lat, userLocation.lng]} />}
+                    <LocationMarker setUserLocation={setUserLocation} />
+                  </MapContainer>
                   {userLocation ? (
                     <p className="text-sm text-slate-300">
-                      Location: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
+                      Selected Location: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
                     </p>
                   ) : (
                     <p className="text-sm text-rose-300">
-                      Location not available. Please allow location access.
+                      Click on the map to select a location.
                     </p>
                   )}
                 </div>
@@ -562,14 +570,14 @@ const DonationPage: React.FC<DonationPageProps> = ({ user_id }) => {
                     setShowCreateForm(false);
                     setSelectedProducts([]);
                   }}
-                  className="rounded-lg border border-slate-700 px-4 py-2 text-slate-200 hover:bg-slate-800"
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-slate-200 hover:bg-slate-800 shadow-md hover:shadow-lg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading || selectedProducts.length === 0 || !userLocation}
-                  className="rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-600"
+                  className="rounded-lg bg-gradient-to-r from-emerald-500 to-green-600 px-5 py-2 font-semibold text-white hover:from-emerald-600 hover:to-green-700 shadow-md hover:shadow-lg disabled:cursor-not-allowed disabled:bg-slate-600"
                 >
                   {loading ? "Creating..." : "Create Donation"}
                 </button>
