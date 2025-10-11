@@ -7,6 +7,8 @@ import asyncpg
 from models.reward import RewardCreate, RewardResponse, RewardUpdate, UserRewardCreate, UserRewardResponse
 from database.connection import db_manager
 
+ALLOWED_TYPES = {"Voucher", "Discount", "Free Item", "Badge"}
+
 router = APIRouter(
     prefix="/rewards",
     tags=["rewards"],
@@ -24,6 +26,7 @@ async def get_db_pool():
 @router.post("/", response_model=dict)
 async def create_reward(reward_data: RewardCreate, pool=Depends(get_db_pool)):
     """Create a new reward (admin function)"""
+    # Validasi reward_type dilakukan oleh Pydantic model, tidak perlu validasi manual lagi
     try:
         async with pool.acquire() as connection:
             reward_id = await connection.fetchval(
@@ -32,7 +35,7 @@ async def create_reward(reward_data: RewardCreate, pool=Depends(get_db_pool)):
                 reward_data.name,
                 reward_data.description,
                 reward_data.points_required,
-                reward_data.reward_type,
+                reward_data.reward_type.value,  # Gunakan .value untuk mengambil string value dari enum
                 reward_data.value,
                 reward_data.is_active
             )
@@ -51,11 +54,16 @@ async def get_rewards(
     user_id: Optional[int] = Query(None, description="Show rewards with user's claim status"),
     pool=Depends(get_db_pool)
 ):
-    """Get all available rewards"""
+    """Get all available rewards (hide Badge)"""
     try:
         async with pool.acquire() as connection:
-            where_clause = "WHERE is_active = TRUE" if active_only else ""
-            
+            # 🔽 bangun WHERE clause baru: active_only + hide Badge
+            where = []
+            if active_only:
+                where.append("is_active = TRUE")
+            where.append("reward_type <> 'Badge'")   # ⬅️ sembunyikan Badge
+            where_clause = f"WHERE {' AND '.join(where)}" if where else ""
+
             if user_id:
                 # Include user's claim status
                 query = f"""
@@ -74,13 +82,18 @@ async def get_rewards(
                 """
                 rows = await connection.fetch(query, user_id)
             else:
-                query = f"SELECT * FROM rewards {where_clause} ORDER BY points_required ASC"
+                query = f"""
+                    SELECT * FROM rewards
+                    {where_clause}
+                    ORDER BY points_required ASC
+                """
                 rows = await connection.fetch(query)
-            
+
             rewards = [dict(row) for row in rows]
             return {"status": "success", "rewards": rewards}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 
 @router.get("/{reward_id}", response_model=dict)
 async def get_reward(reward_id: int, pool=Depends(get_db_pool)):
@@ -420,27 +433,33 @@ async def add_user_points(user_id: int, points: int = Query(..., description="Po
 
 @router.post("/create-sample-rewards", response_model=dict)
 async def create_sample_rewards(pool=Depends(get_db_pool)):
-    """Create sample rewards for testing"""
+    """Create sample rewards (admin function)"""
     try:
         async with pool.acquire() as connection:
             sample_rewards = [
-                ("Welcome Bonus", "Get started with Monggu", 0, "Badge", "Welcome Badge"),
-                ("First Donation", "Make your first donation", 50, "Voucher", "5% Discount"),
-                ("Eco Warrior", "Complete 10 donations", 200, "Badge", "Eco Warrior Badge"),
+                ("Free Coffee", "Get a free coffee from our partner cafe", 100, "Voucher", "1 Free Coffee"),
+                ("10% Discount", "10% discount on your next donation pickup", 250, "Discount", "10% Off"),
+                ("Free Delivery", "Free delivery for your next donation", 300, "Free Item", "Free Delivery Service"),
                 ("Point Collector", "Earn 500 points", 500, "Discount", "10% Off Next Order"),
-                ("Green Champion", "Complete 25 donations", 1000, "Free Item", "Free Eco Bag"),
                 ("Sustainability Hero", "Earn 2000 points", 2000, "Voucher", "Free Delivery"),
             ]
-            
+
+            created_rewards = []
             for name, desc, points, reward_type, value in sample_rewards:
-                await connection.execute(
-                    """INSERT INTO rewards (name, description, points_required, reward_type, value, is_active) 
-                       VALUES ($1, $2, $3, $4, $5, TRUE) 
-                       ON CONFLICT (name) DO NOTHING""",
+                if reward_type not in ALLOWED_TYPES:  # guard ekstra (blok Badge)
+                    continue
+                reward_id = await connection.fetchval(
+                    """
+                    INSERT INTO rewards (name, description, points_required, reward_type, value, is_active)
+                    VALUES ($1, $2, $3, $4, $5, TRUE)
+                    ON CONFLICT (name) DO NOTHING
+                    RETURNING reward_id
+                    """,
                     name, desc, points, reward_type, value
                 )
-            
-            return {"status": "success", "message": "Sample rewards created!"}
+                if reward_id:
+                    created_rewards.append({"reward_id": reward_id, "name": name})
+
+            return {"status": "success", "message": f"Created {len(created_rewards)} sample rewards", "rewards": created_rewards}
     except Exception as e:
-        print(f"Error creating sample rewards: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

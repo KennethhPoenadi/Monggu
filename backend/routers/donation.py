@@ -627,14 +627,29 @@ async def get_donation_stats(pool=Depends(get_db_pool)):
     """Get donation statistics"""
     try:
         async with pool.acquire() as connection:
-            stats = await connection.fetchrow(
-                """SELECT COUNT(*) AS total_donations, 
-                           SUM(amount) AS total_amount 
-                   FROM donations"""
+            # Get total donations
+            total_donations = await connection.fetchval(
+                "SELECT COUNT(*) FROM donations"
             )
+            
+            # Get active users (users who made donations)
+            active_users = await connection.fetchval(
+                "SELECT COUNT(DISTINCT donor_user_id) FROM donations"
+            )
+            
+            # Get successful pickups (donations with status DITERIMA)
+            successful_pickups = await connection.fetchval(
+                "SELECT COUNT(*) FROM donations WHERE status = 'Diterima'"
+            )
+            
+            # Calculate CO2 saved (estimate: 0.5 kg CO2 per donation)
+            co2_saved = float(successful_pickups * 0.5)
+            
             return {
-                "total_donations": stats["total_donations"],
-                "total_amount": stats["total_amount"]
+                "total_donations": total_donations or 0,
+                "active_users": active_users or 0,
+                "successful_pickups": successful_pickups or 0,
+                "co2_saved": co2_saved
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

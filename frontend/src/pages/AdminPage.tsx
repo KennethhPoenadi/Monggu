@@ -11,6 +11,7 @@ type RewardCreate = {
   points_required: number;
   reward_type: "Voucher" | "Discount" | "Free Item" | "Badge";
   value: string;
+  is_active: boolean;
 };
 
 const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
@@ -27,6 +28,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
     points_required: 0,
     reward_type: "Voucher",
     value: "",
+    is_active: true,
   });
 
   // --- utils ---
@@ -84,12 +86,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
     }
     setLoading(true);
     try {
+      console.log("Sending reward data:", formData); // Debug log
       const res = await fetch("http://localhost:8000/rewards/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
       const data = await res.json();
+      console.log("Response:", data); // Debug log
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${data.detail || "Failed to create reward"}`);
+      }
+      
       if (data.status === "success") {
         alert("Reward created successfully!");
         setShowCreateForm(false);
@@ -99,6 +108,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
           points_required: 0,
           reward_type: "Voucher",
           value: "",
+          is_active: true,
         });
         loadRewards();
       } else {
@@ -106,7 +116,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
       }
     } catch (err) {
       console.error("Error creating reward:", err);
-      alert("Failed to create reward");
+      alert(`Failed to create reward: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setLoading(false);
     }
@@ -218,33 +228,33 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
 
       <main className="mx-auto max-w-7xl px-6 py-10 space-y-8">
         {/* Header */}
-        <section className="flex items-center justify-between rounded-2xl border border-slate-700/60 bg-slate-900/70 p-6 md:p-8 shadow-xl backdrop-blur-xl">
+        <section className="flex flex-col gap-4 rounded-2xl border border-slate-700/60 bg-slate-900/70 p-4 md:p-8 shadow-xl backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold">
+            <h1 className="text-xl md:text-3xl font-bold">
               Admin — Rewards Management
             </h1>
-            <p className="mt-1 text-slate-300">
+            <p className="mt-1 text-sm md:text-base text-slate-300">
               Create, review, and manage rewards for users.
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
             <button
               onClick={handleCreateSampleRewards}
               disabled={loading}
-              className="rounded-xl bg-blue-600 px-4 py-2.5 font-semibold shadow-lg hover:bg-blue-700 hover:shadow-blue-500/20 disabled:opacity-50"
+              className="rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-semibold shadow-lg hover:bg-blue-700 hover:shadow-blue-500/20 disabled:opacity-50 md:px-4 md:text-base"
             >
               Create Samples
             </button>
             <button
               onClick={handleAddTestPoints}
               disabled={loading}
-              className="rounded-xl bg-purple-600 px-4 py-2.5 font-semibold shadow-lg hover:bg-purple-700 hover:shadow-purple-500/20 disabled:opacity-50"
+              className="rounded-xl bg-purple-600 px-3 py-2.5 text-sm font-semibold shadow-lg hover:bg-purple-700 hover:shadow-purple-500/20 disabled:opacity-50 md:px-4 md:text-base"
             >
               Add Test Points
             </button>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold shadow-lg hover:bg-emerald-700 hover:shadow-emerald-500/20"
+              className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold shadow-lg hover:bg-emerald-700 hover:shadow-emerald-500/20 md:px-5 md:text-base"
             >
               + Add Reward
             </button>
@@ -252,24 +262,24 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
         </section>
 
         {/* List */}
-        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 md:p-8 shadow-lg backdrop-blur">
+        <section className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-4 md:p-8 shadow-lg backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl md:text-2xl font-bold">
+            <h2 className="text-lg md:text-2xl font-bold">
               All Rewards <span className="text-slate-400">({rewards.length})</span>
             </h2>
           </div>
 
           {rewards.length === 0 ? (
-            <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-10 text-center text-slate-300">
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-6 md:p-10 text-center text-slate-300">
               No rewards found. Create your first reward!
             </div>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {rewards.map((r) => (
                 <div
                   key={r.reward_id}
                   onMouseMove={handleGlow}
-                  className="group relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/70 p-5 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-emerald-500/50 hover:shadow-xl"
+                  className="group relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/70 p-4 md:p-5 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-emerald-500/50 hover:shadow-xl"
                 >
                   {/* glow */}
                   <span
@@ -345,9 +355,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
 
       {/* Create Modal */}
       {showCreateForm && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/90 text-slate-100 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-700/60 bg-slate-900/95 text-slate-100 shadow-2xl">
+            <div className="sticky top-0 flex items-center justify-between border-b border-slate-700 bg-slate-900/95 px-4 py-4 md:px-6">
               <h3 className="text-lg font-semibold">Create New Reward</h3>
               <button
                 onClick={() => setShowCreateForm(false)}
@@ -358,7 +368,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateReward} className="space-y-4 px-6 py-5">
+            <form onSubmit={handleCreateReward} className="space-y-4 p-4 md:px-6 md:py-5">
               <div>
                 <label className="mb-1 block text-sm font-medium">
                   Reward Name *
@@ -369,7 +379,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
                   onChange={(e) =>
                     setFormData((p) => ({ ...p, name: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 md:text-sm md:py-2"
                   required
                 />
               </div>
@@ -384,12 +394,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
                   onChange={(e) =>
                     setFormData((p) => ({ ...p, description: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 md:text-sm md:py-2"
                   required
                 />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium">
                     Points Required *
@@ -404,7 +414,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
                         points_required: parseInt(e.target.value) || 0,
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 md:text-sm md:py-2"
                     required
                   />
                 </div>
@@ -421,13 +431,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
                         reward_type: e.target.value as RewardCreate["reward_type"],
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 md:text-sm md:py-2"
                     required
                   >
                     <option value="Voucher">Voucher</option>
                     <option value="Discount">Discount</option>
                     <option value="Free Item">Free Item</option>
-                    <option value="Badge">Badge</option>
                   </select>
                 </div>
               </div>
@@ -446,23 +455,41 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
                     }))
                   }
                   placeholder="e.g. 10000 rupiah, 20% discount, Free coffee"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-base outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 md:text-sm md:py-2"
                   required
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={formData.is_active}
+                  onChange={(e) =>
+                    setFormData((p) => ({
+                      ...p,
+                      is_active: e.target.checked,
+                    }))
+                  }
+                  className="h-5 w-5 rounded border border-slate-700 bg-slate-800 text-emerald-600 focus:ring-emerald-500"
+                />
+                <label htmlFor="is_active" className="text-sm font-medium">
+                  Active Reward
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
-                  className="rounded-lg border border-slate-700 px-4 py-2 font-semibold hover:bg-slate-800"
+                  className="rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold hover:bg-slate-800 md:text-base md:py-2"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="rounded-lg bg-emerald-600 px-5 py-2 font-semibold hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 md:text-base md:py-2"
                 >
                   {loading ? "Creating…" : "Create Reward"}
                 </button>

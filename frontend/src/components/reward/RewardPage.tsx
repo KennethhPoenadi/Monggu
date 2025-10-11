@@ -20,12 +20,14 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
       const data = await response.json();
       console.log("Rewards response:", data); // Debug log
       if (data.status === "success") {
-        const updatedRewards = data.rewards.map((reward: Reward) => ({
-          ...reward,
-          can_claim: userPoints >= reward.points_required, // Check if user has enough points
-        }));
-        setRewards(updatedRewards);
-      } else {
+      const filteredRewards = data.rewards
+      .filter((r: Reward) => r.reward_type !== RewardType.BADGE)
+      .map((reward: Reward) => ({
+      ...reward,
+      can_claim: userPoints >= reward.points_required,
+    }));
+  setRewards(filteredRewards);
+} else {
         console.error("Failed to load rewards:", data);
       }
     } catch (error) {
@@ -37,7 +39,13 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
     try {
       const response = await fetch(`http://localhost:8000/rewards/user/${user_id}`);
       const data = await response.json();
-      if (data.status === "success") setUserRewards(data.user_rewards);
+      if (data.status === "success") {
+  const filteredUserRewards = data.user_rewards.filter(
+    (ur: UserReward) => ur.reward_type !== RewardType.BADGE // 🚫 hide Badge
+  );
+  setUserRewards(filteredUserRewards);
+}
+
     } catch (error) {
       console.error("Error loading user rewards:", error);
     }
