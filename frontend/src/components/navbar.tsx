@@ -75,7 +75,7 @@ export default function Navbar({
                   FoodLoop
                 </h1>
                 <p className="leading-4 text-xs font-medium text-slate-400">
-                  Food Donation<br />Platform
+                  Food Saved<br />Smiles Shared
                 </p>
               </div>
             </div>
