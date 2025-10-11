@@ -18,11 +18,20 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
     try {
       const response = await fetch(`http://localhost:8000/rewards/?user_id=${user_id}`);
       const data = await response.json();
-      if (data.status === "success") setRewards(data.rewards);
+      console.log("Rewards response:", data); // Debug log
+      if (data.status === "success") {
+        const updatedRewards = data.rewards.map((reward: Reward) => ({
+          ...reward,
+          can_claim: userPoints >= reward.points_required, // Check if user has enough points
+        }));
+        setRewards(updatedRewards);
+      } else {
+        console.error("Failed to load rewards:", data);
+      }
     } catch (error) {
       console.error("Error loading rewards:", error);
     }
-  }, [user_id]);
+  }, [user_id, userPoints]);
 
   const loadUserRewards = useCallback(async () => {
     try {
@@ -38,9 +47,12 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
     try {
       const response = await fetch(`http://localhost:8000/rewards/user/${user_id}/points`);
       const data = await response.json();
+      console.log("User points response:", data); // Debug log
       if (data.status === "success") {
         setUserPoints(data.points);
         setUserRank(data.rank);
+      } else {
+        console.error("Failed to load user points:", data);
       }
     } catch (error) {
       console.error("Error loading user points:", error);
@@ -48,10 +60,13 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
   }, [user_id]);
 
   useEffect(() => {
+    loadUserPoints();
+  }, [loadUserPoints]);
+
+  useEffect(() => {
     loadRewards();
     loadUserRewards();
-    loadUserPoints();
-  }, [loadRewards, loadUserRewards, loadUserPoints]);
+  }, [loadRewards, loadUserRewards]);
 
   // --- actions
   const claimReward = async (rewardId: number) => {
@@ -78,6 +93,67 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
     }
   };
 
+  // --- ui helpers
+  const getRewardIcon = (type: RewardType) => {
+    switch (type) {
+      case RewardType.DISCOUNT:
+        return "💰";
+      case RewardType.FREE_ITEM:
+        return "🎁";
+      case RewardType.VOUCHER:
+        return "🎫";
+      case RewardType.BADGE:
+        return "🏅";
+      default:
+        return "🎉";
+    }
+  };
+
+  // chip warna gelap
+  const chipClass = (type: RewardType) => {
+    switch (type) {
+      case RewardType.DISCOUNT:
+        return "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30";
+      case RewardType.FREE_ITEM:
+        return "bg-violet-500/15 text-violet-300 border border-violet-500/30";
+      case RewardType.VOUCHER:
+        return "bg-sky-500/15 text-sky-300 border border-sky-500/30";
+      case RewardType.BADGE:
+        return "bg-amber-500/15 text-amber-300 border border-amber-500/30";
+      default:
+        return "bg-slate-700/40 text-slate-200 border border-slate-600/60";
+    }
+  };
+
+  // color glow mengikuti tipe reward (rgba)
+  const glowRGBA = (type: RewardType) => {
+    switch (type) {
+      case RewardType.DISCOUNT:
+        return "rgba(16,185,129,.12)"; // emerald-500
+      case RewardType.FREE_ITEM:
+        return "rgba(139,92,246,.12)"; // violet-500
+      case RewardType.VOUCHER:
+        return "rgba(56,189,248,.12)"; // sky-400
+      case RewardType.BADGE:
+        return "rgba(245,158,11,.12)"; // amber-500
+      default:
+        return "rgba(148,163,184,.12)"; // slate-400
+    }
+  };
+
+  // follow-mouse glow handlers
+  const handleGlowMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget as HTMLElement;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--x", `${e.clientX - r.left}px`);
+    el.style.setProperty("--y", `${e.clientY - r.top}px`);
+  };
+  const handleGlowLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget as HTMLElement;
+    el.style.removeProperty("--x");
+    el.style.removeProperty("--y");
+  };
+
   const handleUseReward = async (userRewardId: number) => {
     try {
       const response = await fetch(
@@ -97,66 +173,7 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
     }
   };
 
-  // --- ui helpers
-  const getRewardIcon = (type: RewardType) => {
-    switch (type) {
-      case RewardType.Discount:
-        return "💰";
-      case RewardType.Gift:
-        return "🎁";
-      case RewardType.Voucher:
-        return "🎫";
-      case RewardType.Badge:
-        return "🏅";
-      default:
-        return "🎉";
-    }
-  };
 
-  // chip warna gelap
-  const chipClass = (type: RewardType) => {
-    switch (type) {
-      case RewardType.Discount:
-        return "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30";
-      case RewardType.Gift:
-        return "bg-violet-500/15 text-violet-300 border border-violet-500/30";
-      case RewardType.Voucher:
-        return "bg-sky-500/15 text-sky-300 border border-sky-500/30";
-      case RewardType.Badge:
-        return "bg-amber-500/15 text-amber-300 border border-amber-500/30";
-      default:
-        return "bg-slate-700/40 text-slate-200 border border-slate-600/60";
-    }
-  };
-
-  // color glow mengikuti tipe reward (rgba)
-  const glowRGBA = (type: RewardType) => {
-    switch (type) {
-      case RewardType.Discount:
-        return "rgba(16,185,129,.12)"; // emerald-500
-      case RewardType.Gift:
-        return "rgba(139,92,246,.12)"; // violet-500
-      case RewardType.Voucher:
-        return "rgba(56,189,248,.12)"; // sky-400
-      case RewardType.Badge:
-        return "rgba(245,158,11,.12)"; // amber-500
-      default:
-        return "rgba(148,163,184,.12)"; // slate-400
-    }
-  };
-
-  // follow-mouse glow handlers
-  const handleGlowMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const el = e.currentTarget as HTMLElement;
-    const r = el.getBoundingClientRect();
-    el.style.setProperty("--x", `${e.clientX - r.left}px`);
-    el.style.setProperty("--y", `${e.clientY - r.top}px`);
-  };
-  const handleGlowLeave = (e: React.MouseEvent<HTMLDivElement>) => {
-    const el = e.currentTarget as HTMLElement;
-    el.style.removeProperty("--x");
-    el.style.removeProperty("--y");
-  };
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100">
@@ -255,9 +272,10 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
                 key={reward.reward_id}
                 onMouseMove={handleGlowMove}
                 onMouseLeave={handleGlowLeave}
-                className="group relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                className={`group relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
+                  !reward.can_claim ? "opacity-60" : ""
+                }`}
               >
-                {/* follow-mouse glow */}
                 <span
                   aria-hidden
                   className="pointer-events-none absolute inset-0 -z-10 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
@@ -268,44 +286,46 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
                   }}
                 />
 
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-sky-500 to-violet-500 text-2xl transition-transform duration-300 group-hover:scale-110">
-                      {getRewardIcon(reward.reward_type)}
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-100">{reward.name}</h3>
-                      <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${chipClass(reward.reward_type)}`}>
-                        {String(reward.reward_type)}
-                      </span>
-                    </div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-violet-500 to-sky-500 text-2xl">
+                    {getRewardIcon(reward.reward_type)}
                   </div>
-                  <div className="text-right">
-                    <div className="text-sky-300 font-semibold">
-                      {reward.points_required.toLocaleString()} pts
-                    </div>
-                    {reward.value > 0 && (
-                      <div className="text-xs text-slate-400">Value: {reward.value.toLocaleString()}</div>
-                    )}
-                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${chipClass(reward.reward_type)}`}>
+                    {String(reward.reward_type)}
+                  </span>
                 </div>
 
-                <p className="mb-4 text-slate-300">{reward.description}</p>
+                <div className="mt-4">
+                  <h3 className="text-lg font-bold text-slate-100">{reward.name}</h3>
+                  <p className="mt-1 text-sm text-slate-300">{reward.description}</p>
+                  <p className="mt-2 text-lg font-semibold text-emerald-400">{reward.value}</p>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between text-sm">
+                  <span className="text-slate-400">
+                    Points: {reward.points_required.toLocaleString()}
+                  </span>
+                  <span className={`font-semibold ${
+                    userPoints >= reward.points_required ? "text-emerald-400" : "text-red-400"
+                  }`}>
+                    You have: {userPoints.toLocaleString()}
+                  </span>
+                </div>
 
                 {reward.user_reward_id ? (
-                  <div className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2 text-center font-semibold text-emerald-300">
-                    ✅ Already Claimed
+                  <div className="mt-4 rounded-lg border border-emerald-700 bg-emerald-900/40 px-4 py-2 text-center text-emerald-300">
+                    ✓ Already Claimed
                   </div>
                 ) : reward.can_claim ? (
                   <button
                     onClick={() => claimReward(reward.reward_id)}
                     disabled={loading}
-                    className="w-full rounded-xl bg-sky-600 py-2 font-semibold text-white transition-colors hover:bg-sky-700 disabled:opacity-50"
+                    className="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
                   >
                     {loading ? "Claiming..." : "Claim Reward"}
                   </button>
                 ) : (
-                  <div className="w-full rounded-xl border border-slate-700 bg-slate-800/60 py-2 text-center text-slate-300">
+                  <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-2 text-center text-slate-400">
                     Need {(reward.points_required - userPoints).toLocaleString()} more points
                   </div>
                 )}
@@ -363,12 +383,8 @@ const RewardPage: React.FC<RewardPageProps> = ({ user_id }) => {
                             <span>Used: {new Date(ur.used_at).toLocaleDateString()}</span>
                           </>
                         )}
-                        {ur.value > 0 && (
-                          <>
-                            <span>•</span>
-                            <span>Value: {ur.value.toLocaleString()}</span>
-                          </>
-                        )}
+                        <span>•</span>
+                        <span>Value: {ur.value}</span>
                       </div>
                     </div>
                   </div>

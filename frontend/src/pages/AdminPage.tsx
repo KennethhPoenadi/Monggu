@@ -9,8 +9,8 @@ type RewardCreate = {
   name: string;
   description: string;
   points_required: number;
-  reward_type: "Gift" | "Voucher" | "Discount" | "Badge";
-  value: number;
+  reward_type: "Voucher" | "Discount" | "Free Item" | "Badge";
+  value: string;
 };
 
 const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
@@ -25,8 +25,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
     name: "",
     description: "",
     points_required: 0,
-    reward_type: "Gift",
-    value: 0,
+    reward_type: "Voucher",
+    value: "",
   });
 
   // --- utils ---
@@ -97,8 +97,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
           name: "",
           description: "",
           points_required: 0,
-          reward_type: "Gift",
-          value: 0,
+          reward_type: "Voucher",
+          value: "",
         });
         loadRewards();
       } else {
@@ -128,6 +128,51 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
     } catch (err) {
       console.error("Error deleting reward:", err);
       alert("Failed to delete reward");
+    }
+  };
+
+  const handleCreateSampleRewards = async () => {
+    if (!confirm("Create sample rewards? This will add default rewards to the system.")) return;
+    setLoading(true);
+    try {
+      const res = await fetch("http://localhost:8000/rewards/create-sample-rewards", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        alert(`Successfully created ${data.rewards?.length || 0} sample rewards!`);
+        loadRewards();
+      } else {
+        alert(`Error: ${data.detail || "Failed to create sample rewards"}`);
+      }
+    } catch (err) {
+      console.error("Error creating sample rewards:", err);
+      alert("Failed to create sample rewards");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddTestPoints = async () => {
+    const points = prompt("How many points to add to your account for testing?");
+    if (!points || isNaN(Number(points))) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`http://localhost:8000/rewards/user/${user_id}/add-points?points=${points}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        alert(`Successfully added ${points} points! New total: ${data.new_total}`);
+      } else {
+        alert(`Error: ${data.detail || "Failed to add points"}`);
+      }
+    } catch (err) {
+      console.error("Error adding test points:", err);
+      alert("Failed to add test points");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -182,12 +227,28 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
               Create, review, and manage rewards for users.
             </p>
           </div>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold shadow-lg hover:bg-emerald-700 hover:shadow-emerald-500/20"
-          >
-            + Add Reward
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={handleCreateSampleRewards}
+              disabled={loading}
+              className="rounded-xl bg-blue-600 px-4 py-2.5 font-semibold shadow-lg hover:bg-blue-700 hover:shadow-blue-500/20 disabled:opacity-50"
+            >
+              Create Samples
+            </button>
+            <button
+              onClick={handleAddTestPoints}
+              disabled={loading}
+              className="rounded-xl bg-purple-600 px-4 py-2.5 font-semibold shadow-lg hover:bg-purple-700 hover:shadow-purple-500/20 disabled:opacity-50"
+            >
+              Add Test Points
+            </button>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold shadow-lg hover:bg-emerald-700 hover:shadow-emerald-500/20"
+            >
+              + Add Reward
+            </button>
+          </div>
         </section>
 
         {/* List */}
@@ -363,9 +424,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
                     className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
                     required
                   >
-                    <option value="Gift">Gift</option>
                     <option value="Voucher">Voucher</option>
                     <option value="Discount">Discount</option>
+                    <option value="Free Item">Free Item</option>
                     <option value="Badge">Badge</option>
                   </select>
                 </div>
@@ -376,15 +437,15 @@ const AdminPage: React.FC<AdminPageProps> = ({ user_id }) => {
                   Value *
                 </label>
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
                   value={formData.value}
                   onChange={(e) =>
                     setFormData((p) => ({
                       ...p,
-                      value: parseInt(e.target.value) || 0,
+                      value: e.target.value,
                     }))
                   }
+                  placeholder="e.g. 10000 rupiah, 20% discount, Free coffee"
                   className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
                   required
                 />

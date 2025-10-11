@@ -65,7 +65,7 @@ async def get_rewards(
                            ur.is_used,
                            ur.used_at,
                            u.poin as user_points,
-                           CASE WHEN r.points_required <= u.poin THEN TRUE ELSE FALSE END as can_claim
+                           CASE WHEN r.points_required <= COALESCE(u.poin, 0) THEN TRUE ELSE FALSE END as can_claim
                     FROM rewards r
                     LEFT JOIN user_rewards ur ON r.reward_id = ur.reward_id AND ur.user_id = $1
                     LEFT JOIN users u ON u.user_id = $1
@@ -187,7 +187,13 @@ async def claim_reward(reward_id: int, user_id: int = Query(..., description="Us
             # Check user's points
             user = await connection.fetchrow("SELECT poin FROM users WHERE user_id = $1", user_id)
             if not user:
-                raise HTTPException(status_code=404, detail="User not found")
+                # Create user if doesn't exist
+                await connection.execute(
+                    """INSERT INTO users (user_id, poin, rank, isadmin) 
+                       VALUES ($1, 0, 'Bronze', FALSE)""",
+                    user_id
+                )
+                user = {'poin': 0}
                 
             if user['poin'] < reward['points_required']:
                 raise HTTPException(status_code=400, detail=f"Insufficient points. Required: {reward['points_required']}, You have: {user['poin']}")
@@ -271,24 +277,170 @@ async def use_reward(user_reward_id: int, pool=Depends(get_db_pool)):
 
 @router.get("/user/{user_id}/points", response_model=dict)
 async def get_user_points(user_id: int, pool=Depends(get_db_pool)):
-    """Get user points by user_id"""
+    """Get user points and rank by user_id"""
     try:
         async with pool.acquire() as connection:
-            # Try getting points from accounts table first
-            points = await connection.fetchval(
-                """SELECT poin FROM accounts WHERE user_id = $1""",
+            # Get user points from users table
+            user_data = await connection.fetchrow(
+                """SELECT poin, rank FROM users WHERE user_id = $1""",
                 user_id
             )
-            if points is None:
-                # If not found in accounts, try user_rewards table
-                points = await connection.fetchval(
-                    """SELECT points FROM user_rewards WHERE user_id = $1""",
+                
+            if user_data is None:
+                # If user not found, create default user entry
+                await connection.execute(
+                    """INSERT INTO users (user_id, poin, rank, isadmin) 
+                       VALUES ($1, 0, 'Bronze', FALSE) 
+                       ON CONFLICT (user_id) DO NOTHING""",
                     user_id
                 )
-                if points is None:
-                    # If still not found, return 0 points instead of error
-                    points = 0
-            return {"status": "success", "user_id": user_id, "points": points}
+                return {
+                    "status": "success", 
+                    "user_id": user_id, 
+                    "points": 0,
+                    "rank": "Bronze"
+                }
+                
+            return {
+                "status": "success", 
+                "user_id": user_id, 
+                "points": user_data['poin'] or 0,
+                "rank": user_data['rank'] or "Bronze"
+            }
     except Exception as e:
         print(f"Error getting points for user_id {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.post("/user/{user_id}/add-points", response_model=dict)
+async def add_points_to_user(user_id: int, points: int = Query(..., description="Points to add"), pool=Depends(get_db_pool)):
+    """Add points to a user (admin function for testing)"""
+    try:
+        async with pool.acquire() as connection:
+            # Check if user exists, if not create them
+            user_exists = await connection.fetchval("SELECT COUNT(*) FROM users WHERE user_id = $1", user_id)
+            
+            if user_exists == 0:
+                # Create user if doesn't exist
+                await connection.execute(
+                    """INSERT INTO users (user_id, poin, rank, isadmin) 
+                       VALUES ($1, $2, 'Bronze', FALSE)""",
+                    user_id, points
+                )
+                new_total = points
+            else:
+                # Add points to existing user
+                new_total = await connection.fetchval(
+                    """UPDATE users SET poin = poin + $1 WHERE user_id = $2 RETURNING poin""",
+                    points, user_id
+                )
+            
+            return {
+                "status": "success",
+                "message": f"Added {points} points to user {user_id}",
+                "new_total": new_total
+            }
+    except Exception as e:
+        print(f"Error adding points to user_id {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.post("/create-sample-rewards", response_model=dict)
+async def create_sample_rewards(pool=Depends(get_db_pool)):
+    """Create sample rewards (admin function)"""
+    try:
+        async with pool.acquire() as connection:
+            sample_rewards = [
+                ("Free Coffee", "Get a free coffee from our partner cafe", 100, "Voucher", "1 Free Coffee"),
+                ("10% Discount", "10% discount on your next donation pickup", 250, "Discount", "10% Off"),
+                ("Eco Warrior Badge", "Badge for being an environmental champion", 500, "Badge", "Digital Badge"),
+                ("Free Delivery", "Free delivery for your next donation", 300, "Free Item", "Free Delivery Service"),
+                ("VIP Status", "Get VIP status for 1 month", 1000, "Badge", "1 Month VIP")
+            ]
+            
+            created_rewards = []
+            for name, desc, points, reward_type, value in sample_rewards:
+                # Check if reward already exists
+                existing = await connection.fetchval(
+                    "SELECT reward_id FROM rewards WHERE name = $1", name
+                )
+                
+                if not existing:
+                    reward_id = await connection.fetchval(
+                        """INSERT INTO rewards (name, description, points_required, reward_type, value, is_active) 
+                           VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING reward_id""",
+                        name, desc, points, reward_type, value
+                    )
+                    created_rewards.append({"reward_id": reward_id, "name": name})
+            
+            return {
+                "status": "success",
+                "message": f"Created {len(created_rewards)} sample rewards",
+                "rewards": created_rewards
+            }
+    except Exception as e:
+        print(f"Error creating sample rewards: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.post("/user/{user_id}/add-points", response_model=dict)
+async def add_user_points(user_id: int, points: int = Query(..., description="Points to add"), pool=Depends(get_db_pool)):
+    """Add points to user (for testing/admin purposes)"""
+    try:
+        async with pool.acquire() as connection:
+            # Ensure user exists in users table
+            user_exists = await connection.fetchval(
+                "SELECT user_id FROM users WHERE user_id = $1", user_id
+            )
+            
+            if not user_exists:
+                # Create user if doesn't exist
+                await connection.execute(
+                    """INSERT INTO users (user_id, poin, rank, isadmin) 
+                       VALUES ($1, $2, 'Bronze', FALSE)""",
+                    user_id, points
+                )
+            else:
+                # Update existing user's points
+                await connection.execute(
+                    "UPDATE users SET poin = poin + $1 WHERE user_id = $2",
+                    points, user_id
+                )
+            
+            # Get updated points
+            updated_points = await connection.fetchval(
+                "SELECT poin FROM users WHERE user_id = $1", user_id
+            )
+            
+            return {
+                "status": "success", 
+                "message": f"Added {points} points to user {user_id}",
+                "total_points": updated_points
+            }
+    except Exception as e:
+        print(f"Error adding points for user_id {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.post("/create-sample-rewards", response_model=dict)
+async def create_sample_rewards(pool=Depends(get_db_pool)):
+    """Create sample rewards for testing"""
+    try:
+        async with pool.acquire() as connection:
+            sample_rewards = [
+                ("Welcome Bonus", "Get started with Monggu", 0, "Badge", "Welcome Badge"),
+                ("First Donation", "Make your first donation", 50, "Voucher", "5% Discount"),
+                ("Eco Warrior", "Complete 10 donations", 200, "Badge", "Eco Warrior Badge"),
+                ("Point Collector", "Earn 500 points", 500, "Discount", "10% Off Next Order"),
+                ("Green Champion", "Complete 25 donations", 1000, "Free Item", "Free Eco Bag"),
+                ("Sustainability Hero", "Earn 2000 points", 2000, "Voucher", "Free Delivery"),
+            ]
+            
+            for name, desc, points, reward_type, value in sample_rewards:
+                await connection.execute(
+                    """INSERT INTO rewards (name, description, points_required, reward_type, value, is_active) 
+                       VALUES ($1, $2, $3, $4, $5, TRUE) 
+                       ON CONFLICT (name) DO NOTHING""",
+                    name, desc, points, reward_type, value
+                )
+            
+            return {"status": "success", "message": "Sample rewards created!"}
+    except Exception as e:
+        print(f"Error creating sample rewards: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

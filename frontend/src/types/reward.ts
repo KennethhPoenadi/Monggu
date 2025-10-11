@@ -1,9 +1,9 @@
 // Reward related types
 export const RewardType = {
-  Discount: "Discount",
-  Gift: "Gift",
-  Voucher: "Voucher",
-  Badge: "Badge",
+  VOUCHER: "Voucher",
+  DISCOUNT: "Discount", 
+  FREE_ITEM: "Free Item",
+  BADGE: "Badge",
 } as const;
 
 export type RewardType = (typeof RewardType)[keyof typeof RewardType];
@@ -14,7 +14,7 @@ export interface Reward {
   description: string;
   points_required: number;
   reward_type: RewardType;
-  value: number;
+  value: string;  // Changed from number to string to match backend
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -32,7 +32,7 @@ export interface RewardCreate {
   description: string;
   points_required: number;
   reward_type: RewardType;
-  value: number;
+  value: string;  // Changed from number to string
   is_active?: boolean;
 }
 
@@ -41,7 +41,7 @@ export interface RewardUpdate {
   description?: string;
   points_required?: number;
   reward_type?: RewardType;
-  value?: number;
+  value?: string;  // Changed from number to string
   is_active?: boolean;
 }
 
@@ -56,7 +56,7 @@ export interface UserReward {
   name: string;
   description: string;
   reward_type: RewardType;
-  value: number;
+  value: string;  // Changed from number to string
 }
 
 export interface UserRewardCreate {
