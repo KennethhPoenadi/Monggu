@@ -66,7 +66,7 @@ export default function ProtectedRoute({
                 </span>
                 <br />
                 <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-                  Monggu
+                  FoodLoop
                 </span>
               </h1>
               

@@ -138,9 +138,7 @@ export default function Navbar({
                         {userInfo.name || userInfo.email.split("@")[0]}
                       </p>
                       <div className="mt-1 flex items-center gap-3">
-                        <span className="inline-flex h-6 items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-700 px-3 text-xs font-bold leading-none text-white shadow-md">
-                          {userInfo.poin} pts
-                        </span>
+                        
                         <span className="inline-flex h-6 items-center rounded-full bg-gradient-to-r from-violet-500 to-violet-700 px-3 text-xs font-bold leading-none text-white shadow-md">
                           {userInfo.rank}
                         </span>
